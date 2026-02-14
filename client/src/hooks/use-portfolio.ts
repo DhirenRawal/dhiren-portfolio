@@ -61,6 +61,18 @@ export function useSkills() {
   });
 }
 
+// GET /api/market
+export function useMarketData() {
+  return useQuery({
+    queryKey: [api.market.list.path],
+    queryFn: async () => {
+      const res = await fetch(api.market.list.path);
+      if (!res.ok) throw new Error("Failed to fetch market data");
+      return api.market.list.responses[200].parse(await res.json());
+    },
+  });
+}
+
 // POST /api/contact
 export function useContact() {
   return useMutation({

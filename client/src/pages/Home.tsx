@@ -123,15 +123,15 @@ export default function Home() {
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4 mt-6">
-                  <div className="p-4 bg-muted/30 rounded border border-border">
-                    <Activity className="w-5 h-5 text-primary mb-2" />
-                    <div className="text-xs text-muted-foreground">Latency</div>
-                    <div className="text-lg font-bold text-white">24ms</div>
+                  <div className="p-4 bg-muted/30 rounded border border-border hover:border-primary/50 transition-colors group/item">
+                    <Activity className="w-5 h-5 text-primary mb-2 group-hover/item:scale-110 transition-transform" />
+                    <div className="text-xs text-muted-foreground">Market Latency</div>
+                    <div className="text-lg font-bold text-white">4.2ms</div>
                   </div>
-                  <div className="p-4 bg-muted/30 rounded border border-border">
-                    <Database className="w-5 h-5 text-secondary mb-2" />
-                    <div className="text-xs text-muted-foreground">Uptime</div>
-                    <div className="text-lg font-bold text-white">99.9%</div>
+                  <div className="p-4 bg-muted/30 rounded border border-border hover:border-secondary/50 transition-colors group/item">
+                    <Database className="w-5 h-5 text-secondary mb-2 group-hover/item:scale-110 transition-transform" />
+                    <div className="text-xs text-muted-foreground">Data Feed</div>
+                    <div className="text-lg font-bold text-white">Active</div>
                   </div>
                 </div>
               </div>

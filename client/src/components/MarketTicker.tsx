@@ -1,48 +1,50 @@
-import { useSkills } from "@/hooks/use-portfolio";
+import { useMarketData } from "@/hooks/use-portfolio";
 import { ArrowUpRight, ArrowDownRight } from "lucide-react";
 
 export function MarketTicker() {
-  const { data: skills } = useSkills();
+  const { data: marketData } = useMarketData();
 
-  // Flatten skills for the ticker
-  const tickerItems = skills
-    ? skills.flatMap((s) =>
-        s.items.map((item) => ({
-          symbol: item.toUpperCase().slice(0, 4),
-          name: item,
-          change: (Math.random() * 5).toFixed(2),
-          isPositive: Math.random() > 0.2, // Mostly positive skills!
-        }))
-      )
-    : [];
-
-  if (tickerItems.length === 0) return null;
+  if (!marketData || marketData.length === 0) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 w-full bg-card border-t border-border z-40 overflow-hidden py-2">
+    <div className="fixed bottom-0 left-0 w-full bg-card/80 backdrop-blur-md border-t border-border z-40 overflow-hidden py-2 shadow-[0_-4px_10px_rgba(0,0,0,0.1)]">
       <div className="flex w-max ticker-animation hover:[animation-play-state:paused]">
-        {[...tickerItems, ...tickerItems].map((item, idx) => (
-          <div
-            key={`${item.name}-${idx}`}
-            className="flex items-center gap-3 px-6 border-r border-border/50 min-w-[180px]"
-          >
-            <span className="font-mono font-bold text-sm text-foreground">
-              {item.symbol}
-            </span>
-            <span
-              className={`flex items-center gap-1 text-xs font-mono ${
-                item.isPositive ? "text-primary" : "text-destructive"
-              }`}
+        {[...marketData, ...marketData].map((item, idx) => {
+          const isPositive = parseFloat(item.change) >= 0;
+          return (
+            <div
+              key={`${item.symbol}-${idx}`}
+              className="flex items-center gap-4 px-8 border-r border-border/50 min-w-[220px]"
             >
-              {item.change}%
-              {item.isPositive ? (
-                <ArrowUpRight className="w-3 h-3" />
-              ) : (
-                <ArrowDownRight className="w-3 h-3" />
-              )}
-            </span>
-          </div>
-        ))}
+              <div className="flex flex-col">
+                <span className="font-mono font-bold text-sm text-foreground tracking-tighter">
+                  {item.symbol}
+                </span>
+                <span className="text-[10px] text-muted-foreground uppercase font-mono">
+                  {item.category}
+                </span>
+              </div>
+              
+              <div className="flex flex-col items-end">
+                <span className="font-mono font-bold text-sm">
+                  {item.price}
+                </span>
+                <span
+                  className={`flex items-center gap-1 text-[11px] font-mono font-bold ${
+                    isPositive ? "text-primary" : "text-destructive"
+                  }`}
+                >
+                  {isPositive ? "+" : ""}{item.changePercent}%
+                  {isPositive ? (
+                    <ArrowUpRight className="w-3 h-3" />
+                  ) : (
+                    <ArrowDownRight className="w-3 h-3" />
+                  )}
+                </span>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
