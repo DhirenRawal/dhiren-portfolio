@@ -1,5 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { api, type InsertContactMessage } from "@shared/routes";
+import { api } from "@shared/routes";
+import { type InsertContactMessage } from "@shared/schema";
 
 // GET /api/profile
 export function useProfile() {
