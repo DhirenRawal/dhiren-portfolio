@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -49,6 +49,16 @@ export const skills = pgTable("skills", {
   items: text("items").array().notNull(),
 });
 
+export const market_data = pgTable("market_data", {
+  id: serial("id").primaryKey(),
+  symbol: text("symbol").notNull(),
+  name: text("name").notNull(),
+  price: numeric("price").notNull(),
+  change: numeric("change").notNull(),
+  changePercent: numeric("change_percent").notNull(),
+  category: text("category").notNull(), // 'Stock', 'Index', 'Metal', 'Future', 'Rate'
+});
+
 export const contact_messages = pgTable("contact_messages", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -71,5 +81,6 @@ export type Experience = typeof experiences.$inferSelect;
 export type Education = typeof education.$inferSelect;
 export type Project = typeof projects.$inferSelect;
 export type Skill = typeof skills.$inferSelect;
+export type MarketData = typeof market_data.$inferSelect;
 export type ContactMessage = typeof contact_messages.$inferSelect;
 export type InsertContactMessage = z.infer<typeof insertContactMessageSchema>;

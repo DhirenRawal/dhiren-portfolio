@@ -119,6 +119,13 @@ async function seedDatabase() {
       category: "Financial",
       items: ["Derivatives", "Risk Management", "Time-Series Analysis", "Market Microstructure", "Econometrics"]
     });
+
+    // Market Data (Real Ticker Data)
+    await storage.createMarketData({ symbol: "SPX", name: "S&P 500", price: "5026.61", change: "42.15", changePercent: "0.85", category: "Index" });
+    await storage.createMarketData({ symbol: "AAPL", name: "Apple Inc.", price: "182.31", change: "-1.45", changePercent: "-0.79", category: "Stock" });
+    await storage.createMarketData({ symbol: "GC=F", name: "Gold", price: "2013.40", change: "12.20", changePercent: "0.61", category: "Metal" });
+    await storage.createMarketData({ symbol: "CL=F", name: "Crude Oil", price: "78.19", change: "0.95", changePercent: "1.23", category: "Future" });
+    await storage.createMarketData({ symbol: "US10Y", name: "US 10Y Yield", price: "4.26", change: "0.04", changePercent: "0.95", category: "Rate" });
     
     console.log("Database seeded successfully");
   }
@@ -155,6 +162,11 @@ export async function registerRoutes(
   app.get(api.skills.list.path, async (_req, res) => {
     const skills = await storage.getSkills();
     res.json(skills);
+  });
+
+  app.get(api.market.list.path, async (_req, res) => {
+    const data = await storage.getMarketData();
+    res.json(data);
   });
 
   app.post(api.contact.submit.path, async (req, res) => {
