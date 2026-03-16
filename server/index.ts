@@ -6,7 +6,17 @@ import { createServer } from "http";
 
 const app = express();
 const httpServer = createServer(app);
+import cors from "cors";
 
+app.use(cors({
+  origin: [
+    "https://dhiren-portfolio.vercel.app",
+    "https://dhiren-portfolio-gvjb285u6-dhiren-rawals-projects.vercel.app",
+    "http://localhost:5173"
+  ],
+  methods: ["GET", "POST"],
+  allowedHeaders: ["Content-Type"]
+}));
 declare module "http" {
   interface IncomingMessage {
     rawBody: unknown;
