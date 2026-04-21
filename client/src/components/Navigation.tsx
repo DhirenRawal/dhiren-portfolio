@@ -1,148 +1,92 @@
 import { useEffect, useState } from "react";
-import { Link } from "wouter";
-import { cn } from "@/lib/utils";
-import { Menu, X, Terminal } from "lucide-react";
+import { Menu, Terminal, X } from "lucide-react";
+
+const NAV_LINKS = [
+  { name: "Terminal", href: "/#home" },
+  { name: "Trajectory", href: "/#experience" },
+  { name: "Models", href: "/#projects" },
+  { name: "Pricer", href: "/#pricer" },
+  { name: "Network", href: "/#about" },
+  { name: "Contact", href: "/#contact" },
+];
 
 export function Navigation() {
-  const [isOpen, setIsOpen] = useState(false);
+  const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [activeSection, setActiveSection] = useState("terminal");
 
   useEffect(() => {
-    const navIds = ["terminal", "about", "trajectory", "models", "network", "contact"];
-
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 50);
-
-      const marker = window.scrollY + 180;
-      let current = navIds[0];
-
-      navIds.forEach((id) => {
-        const element = document.getElementById(id);
-
-        if (element && element.offsetTop <= marker) {
-          current = id;
-        }
-      });
-
-      setActiveSection(current);
-    };
-
-    const handleHashChange = () => {
-      const hash = window.location.hash.replace("#", "");
-      if (hash) {
-        setActiveSection(hash);
-      }
-    };
-
+    const handleScroll = () => setScrolled(window.scrollY > 30);
     handleScroll();
     window.addEventListener("scroll", handleScroll);
-    window.addEventListener("hashchange", handleHashChange);
-
-    return () => {
-      window.removeEventListener("scroll", handleScroll);
-      window.removeEventListener("hashchange", handleHashChange);
-    };
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const navLinks = [
-    { name: "Terminal", href: "/#terminal", id: "terminal" },
-    { name: "About", href: "/#about", id: "about" },
-    { name: "Trajectory", href: "/#trajectory", id: "trajectory" },
-    { name: "Models", href: "/#models", id: "models" },
-    { name: "Network", href: "/#network", id: "network" },
-    { name: "Contact", href: "/#contact", id: "contact" },
-  ];
-
   return (
-    <nav
-      className={cn(
-        "fixed top-0 left-0 right-0 z-50 transition-all duration-300",
-        scrolled
-          ? "px-3 pt-3"
-          : "px-3 pt-5"
-      )}
+    <header
+      className={`fixed left-0 right-0 top-0 z-50 transition-all duration-300 ${
+        scrolled ? "border-b border-border/50 bg-background/85 shadow-lg backdrop-blur-md" : "bg-transparent"
+      }`}
     >
-      <div
-        className={cn(
-          "mx-auto flex max-w-[1280px] items-center justify-between gap-6 rounded-[28px] border border-white/5 px-5 py-5 shadow-2xl transition-all duration-300 md:px-7",
-          scrolled
-            ? "bg-background/85 backdrop-blur-xl"
-            : "bg-background/70 backdrop-blur-md"
-        )}
-      >
-        <div className="flex items-center justify-between w-full gap-6">
-          <Link href="/" className="flex items-center gap-3 group cursor-pointer shrink-0">
-            <div className="p-3 rounded-xl bg-primary/10 border border-primary/15 group-hover:border-primary/50 transition-colors">
-              <Terminal className="w-5 h-5 text-primary" />
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="flex h-16 items-center justify-between gap-4">
+          <a href="/#home" className="group flex shrink-0 items-center gap-2">
+            <div className="rounded bg-primary/10 p-1.5 transition-colors group-hover:bg-primary/20">
+              <Terminal className="h-5 w-5 text-primary" />
             </div>
-            <span className="font-display font-bold text-[1.1rem] tracking-tight text-foreground group-hover:text-primary transition-colors">
+            <span className="font-display text-lg font-bold tracking-tight">
               PORTFOLIO<span className="text-primary">.FN</span>
             </span>
-          </Link>
+          </a>
 
-          {/* Desktop Nav */}
-          <div className="hidden md:flex items-center gap-8">
-            {navLinks.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                className={cn(
-                  "relative py-1 text-sm font-mono tracking-tight transition-colors",
-                  activeSection === link.id ? "text-foreground" : "text-muted-foreground hover:text-foreground"
-                )}
-              >
+          <nav className="hidden items-center gap-6 md:flex">
+            {NAV_LINKS.map((link) => (
+              <a key={link.href} href={link.href} className="font-mono text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
                 {link.name}
-                {activeSection === link.id && (
-                  <span className="absolute bottom-0 left-0 h-0.5 w-full bg-primary shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
-                )}
               </a>
             ))}
+          </nav>
+
+          <div className="hidden items-center gap-3 md:flex">
             <a
               href="/Dhiren_Rawal_Resume.pdf"
               target="_blank"
-              rel="noopener noreferrer"
-              className="min-w-[126px] rounded-[18px] border border-primary/40 bg-primary/10 px-5 py-3 text-center text-base font-bold text-primary transition-colors hover:bg-primary/15"
+              rel="noreferrer"
+              className="inline-flex min-h-8 items-center justify-center rounded-md border border-primary bg-primary px-3 text-xs font-medium text-primary-foreground shadow-[0_0_24px_rgba(0,255,136,0.25)] transition-all duration-200 hover:scale-[1.02] hover:shadow-[0_0_40px_rgba(0,255,136,0.42)]"
             >
               Resume
             </a>
           </div>
 
-          {/* Mobile Menu Button */}
-          <button
-            className="md:hidden p-2 text-foreground"
-            onClick={() => setIsOpen(!isOpen)}
-          >
-            {isOpen ? <X /> : <Menu />}
+          <button type="button" className="p-2 text-foreground md:hidden" onClick={() => setOpen((current) => !current)}>
+            {open ? <X /> : <Menu />}
           </button>
         </div>
       </div>
 
-      {/* Mobile Nav */}
-      {isOpen && (
-        <div className="md:hidden absolute top-full left-0 w-full px-3 pt-3 animate-in slide-in-from-top-5">
-          <div className="mx-auto max-w-[1280px] rounded-[24px] border border-white/5 bg-background/90 backdrop-blur-xl px-5 py-6 flex flex-col gap-4 shadow-2xl">
-            {navLinks.map((link) => (
+      {open ? (
+        <div className="absolute w-full border-b border-border bg-background px-4 pb-4 shadow-xl md:hidden">
+          <div className="mt-4 flex flex-col gap-4">
+            {NAV_LINKS.map((link) => (
               <a
                 key={link.href}
                 href={link.href}
-                className="border-b border-border/50 py-2 text-lg font-medium"
-                onClick={() => setIsOpen(false)}
+                onClick={() => setOpen(false)}
+                className="rounded-md p-2 font-mono text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-primary"
               >
-                <span className={cn(activeSection === link.id ? "text-primary" : "text-foreground")}>{link.name}</span>
+                {link.name}
               </a>
             ))}
             <a
               href="/Dhiren_Rawal_Resume.pdf"
               target="_blank"
-              rel="noopener noreferrer"
-              className="mt-2 rounded-2xl border border-primary/40 bg-primary/10 px-4 py-3 text-center font-bold text-primary"
+              rel="noreferrer"
+              className="mt-2 inline-flex min-h-10 items-center justify-center rounded-md border border-primary bg-primary px-4 font-medium text-primary-foreground"
             >
               Resume
             </a>
           </div>
         </div>
-      )}
-    </nav>
+      ) : null}
+    </header>
   );
 }

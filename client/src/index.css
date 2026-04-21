@@ -1,103 +1,119 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap");
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  /* Dark FinTech Theme */
-  --background: 224 46% 6%;
+  --background: 222 47% 5%;
   --foreground: 210 40% 98%;
 
-  --card: 224 38% 9%;
+  --card: 222 47% 7%;
   --card-foreground: 210 40% 98%;
 
-  --popover: 224 46% 6%;
+  --popover: 222 47% 7%;
   --popover-foreground: 210 40% 98%;
 
-  /* Neon Green Accent - Profit/Growth */
-  --primary: 149 100% 53%;
-  --primary-foreground: 144 100% 11%;
+  --primary: 154 100% 50%;
+  --primary-foreground: 222 47% 5%;
 
-  /* Cyan Accent - Tech/Future */
-  --secondary: 199 89% 48%;
+  --secondary: 217 33% 17%;
   --secondary-foreground: 210 40% 98%;
 
-  --muted: 220 28% 12%;
-  --muted-foreground: 220 16% 66%;
+  --muted: 217 33% 17%;
+  --muted-foreground: 215 20% 65%;
 
-  --accent: 220 28% 12%;
-  --accent-foreground: 210 40% 98%;
+  --accent: 154 100% 50%;
+  --accent-foreground: 222 47% 5%;
 
-  --destructive: 0 62% 30%;
+  --destructive: 0 84% 60%;
   --destructive-foreground: 210 40% 98%;
 
-  --border: 222 23% 18%;
-  --input: 220 28% 12%;
-  --ring: 149 100% 53%;
+  --border: 217 33% 17%;
+  --input: 217 33% 17%;
+  --ring: 154 100% 50%;
 
-  --radius: 0.5rem;
+  --radius: 0.75rem;
 
-  --font-sans: 'Inter', sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
-  --font-display: 'DM Sans', sans-serif;
+  --font-sans: "Inter", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+  --font-display: "Space Grotesk", sans-serif;
 }
 
 @layer base {
   html {
     scroll-behavior: smooth;
-    scroll-padding-top: 120px;
   }
 
   * {
     @apply border-border;
   }
+
   body {
-    @apply bg-background text-foreground font-sans antialiased selection:bg-primary/20 selection:text-primary;
-    background-image: 
-      radial-gradient(circle at 25% 18%, hsl(var(--primary) / 0.13), transparent 24%),
-      radial-gradient(circle at 80% 10%, hsl(var(--secondary) / 0.12), transparent 23%),
-      linear-gradient(to right, hsl(var(--border)/0.09) 1px, transparent 1px),
-      linear-gradient(to bottom, hsl(var(--border)/0.09) 1px, transparent 1px),
-      linear-gradient(180deg, hsl(var(--background)), hsl(224 44% 5%));
-    background-size: auto, auto, 72px 72px, 72px 72px, 100% 100%;
-    background-attachment: fixed;
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
     overflow-x: hidden;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     font-family: var(--font-display);
-    @apply font-bold tracking-tight;
+    @apply tracking-tight;
   }
-  
+
   .font-mono {
     font-family: var(--font-mono);
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background-color: hsl(var(--background));
+  }
+
+  ::-webkit-scrollbar-thumb {
+    border: 2px solid hsl(var(--background));
+    background-color: hsl(var(--secondary));
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground));
   }
 }
 
 @layer utilities {
-  .text-gradient {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary via-secondary to-primary bg-[length:200%_auto] animate-gradient;
-  }
-  
-  .glass-card {
-    @apply bg-card/80 backdrop-blur-md border border-white/5 shadow-xl;
+  .glass-panel {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background-color: color-mix(in oklab, hsl(var(--background)) 60%, transparent);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(24px);
   }
 
-  .neon-glow {
-    box-shadow: 0 0 10px -2px hsl(var(--primary) / 0.5);
+  .terminal-border {
+    border: 1px solid color-mix(in oklab, hsl(var(--primary)) 20%, transparent);
+    transition: border-color 0.3s ease;
+  }
+
+  .terminal-border:hover {
+    border-color: color-mix(in oklab, hsl(var(--primary)) 50%, transparent);
   }
 
   .terminal-panel {
-    @apply border border-white/5 bg-card/85 shadow-2xl backdrop-blur-xl;
+    @apply glass-panel;
   }
 
   .terminal-grid {
     background-image:
-      linear-gradient(to right, hsl(var(--border)/0.16) 1px, transparent 1px),
-      linear-gradient(to bottom, hsl(var(--border)/0.16) 1px, transparent 1px);
-    background-size: 80px 80px;
-    mask-image: radial-gradient(circle at center, black 36%, transparent 100%);
+      linear-gradient(to right, rgba(128, 128, 128, 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(128, 128, 128, 0.05) 1px, transparent 1px);
+    background-size: 32px 32px;
   }
 
   .terminal-orbit::before {
@@ -105,34 +121,38 @@
     position: absolute;
     inset: 0;
     border-radius: 9999px;
-    border: 1px solid hsl(var(--primary) / 0.18);
-    box-shadow: 0 0 60px hsl(var(--primary) / 0.08);
+    border: 1px solid rgba(0, 255, 136, 0.16);
+    box-shadow: 0 0 60px rgba(0, 255, 136, 0.08);
+  }
+
+  .text-glow {
+    text-shadow: 0 0 20px rgba(0, 255, 144, 0.5);
+  }
+
+  .box-glow {
+    box-shadow: 0 0 30px rgba(0, 255, 144, 0.15);
   }
 
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
 }
 
-@keyframes gradient {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-.animate-gradient {
-  animation: gradient 6s linear infinite;
-}
-
-.ticker-animation {
-  animation: ticker 30s linear infinite;
-}
-
 @keyframes ticker {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
+  0% {
+    transform: translate(0);
+  }
+
+  100% {
+    transform: translate(-50%);
+  }
+}
+
+.animate-ticker {
+  animation: ticker 30s linear infinite;
 }

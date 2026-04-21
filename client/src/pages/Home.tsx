@@ -1,62 +1,177 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ComponentType, CSSProperties, MouseEvent as ReactMouseEvent, MutableRefObject, ReactNode } from "react";
 import { motion } from "framer-motion";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
+  Activity,
   ArrowDownRight,
+  ArrowRight,
   ArrowUpRight,
   BriefcaseBusiness,
   Calendar,
-  ChevronRight,
-  FileDown,
+  ChevronDown,
+  Download,
   Github,
   GraduationCap,
+  LineChart,
   Linkedin,
   Mail,
   MapPin,
   Phone,
+  Send,
+  ShieldAlert,
+  Sigma,
+  TerminalSquare,
+  TrendingUp,
   Wifi,
 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
-type Repo = {
-  id: number;
-  name: string;
-  html_url: string;
-  homepage: string | null;
-  description: string | null;
-  language: string | null;
-  stargazers_count: number;
-  updated_at: string;
-  fork: boolean;
+type MetricCardProps = {
+  icon: ComponentType<{ className?: string }>;
+  label: string;
+  base: number;
+  spread: number;
+  formatter: (value: number) => string;
+  colorClass: string;
+  delay: number;
+  style: CSSProperties;
 };
 
 type Ticker = {
   symbol: string;
   name: string;
   price: number;
-  changePercent: number;
+  decimals: number;
+  change: number;
+  pct: number;
 };
 
-const ROLE_ROTATION = [
+type Candle = {
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  time: string;
+};
+
+const HERO_ROLES = [
+  "Quantitative Analyst",
   "Derivatives Pricer",
+  "Risk Engineer",
   "Algo Trader",
   "Volatility Modeler",
-  "Credit Trading Analyst",
 ];
 
-const STATS = [
-  { value: "5+", label: "YRS EXP" },
-  { value: "20+", label: "PROJECTS" },
-  { value: "3", label: "DOMAINS" },
-  { value: "A+", label: "FOCUS" },
+const MATRIX_SYMBOLS = [
+  "0.42",
+  "−2.1%",
+  "+",
+  "−",
+  "Δ",
+  "Γ",
+  "σ",
+  "β",
+  "ρ",
+  "θ",
+  "∑",
+  "Φ",
+  "3.14",
+  "√2",
+  "N(d₁)",
+  "0.87",
+  "2.41",
+  "ln",
+  "VaR",
+  "IV",
+  "$",
+  "%",
+  "≈",
+  "∂",
+  "SPX",
+  "e^r",
 ];
 
-const HERO_SKILLS = [
-  "Python",
-  "Black-Scholes",
-  "GARCH",
-  "Monte Carlo",
-  "SQL",
-  "VaR/CVaR",
-  "Fixed Income",
+const HERO_SKILLS = ["Python", "Black-Scholes", "GARCH", "Monte Carlo", "SQL", "VaR/CVaR", "Fixed Income", "NumPy"];
+
+const EXPERIENCE = [
+  {
+    title: "Operations and Finance Manager",
+    organization: "Mahalaxmi Enterprises",
+    date: "Nov 2023 - Aug 2024",
+    location: "Thane, India",
+    details: [
+      "Improved liquidity forecasting accuracy by 10% through advanced statistical modeling.",
+      "Identified and resolved recurring error patterns in financial reporting.",
+      "Streamlined operational workflows reducing processing time by 15%.",
+    ],
+  },
+  {
+    title: "Investment Banking Intern",
+    organization: "StartupLanes",
+    date: "May 2023 - Nov 2023",
+    location: "Goa, India",
+    details: [
+      "Conducted rigorous financial modeling and valuation for tech startups.",
+      "Assisted in drafting pitch decks and investment memorandums for seed-stage funding.",
+      "Analyzed market trends and competitive landscapes.",
+    ],
+  },
+];
+
+const EDUCATION = [
+  {
+    title: "Master of Quantitative Finance",
+    organization: "Rady School of Management, UCSD",
+    date: "Expected Dec 2025",
+    location: "San Diego, CA",
+    details: [
+      "Derivatives & Structured Products",
+      "Advanced Risk Management",
+      "Fixed Income Markets",
+      "Financial Econometrics & Time Series",
+    ],
+  },
+  {
+    title: "Bachelor of Commerce",
+    organization: "KJ Somaiya College of Science and Commerce",
+    date: "Apr 2022",
+    location: "Mumbai, India",
+    details: ["Financial Accounting", "Business Economics", "Corporate Finance"],
+  },
+];
+
+const PROJECTS = [
+  {
+    title: "Real-Time Equity Options Volatility Surface",
+    date: "Sep 2025",
+    tags: ["Python", "Data Analysis", "Volatility Modeling"],
+    description:
+      "Engineered a robust system for real-time calibration and monitoring of equity options volatility surfaces. Implemented numerical methods for smoothing and interpolation.",
+    icon: PulsePathIcon,
+  },
+  {
+    title: "Market Making & Execution Simulation",
+    date: "Nov 2025",
+    tags: ["Python", "Simulation", "Market Microstructure"],
+    description:
+      "Developed a limit order book simulator to backtest market making strategies. Incorporated latency models and queue position estimation to optimize execution algorithms.",
+    icon: MarketPathIcon,
+  },
+  {
+    title: "Derivatives Pricing & Sensitivity Analysis",
+    date: "Dec 2025",
+    tags: ["Python", "SQL", "Risk Management"],
+    description:
+      "Built a comprehensive derivatives pricing engine using Monte Carlo simulations and finite difference methods. Automated daily Greeks calculation and risk exposure reporting.",
+    icon: BracketPathIcon,
+  },
 ];
 
 const CORE_EXPERTISE = [
@@ -70,728 +185,1580 @@ const CORE_EXPERTISE = [
   "Fixed Income",
 ];
 
-const EDUCATION = [
-  {
-    degree: "Master of Quantitative Finance",
-    institution: "Rady School of Management, University of California San Diego",
-    location: "San Diego, CA",
-    date: "Dec 2025",
-    courses:
-      "Derivatives & Structured Products, Advanced Risk Management, Fixed Income, and Financial Econometrics",
-  },
-  {
-    degree: "Bachelor of Commerce",
-    institution: "KJ Somaiya College of Science and Commerce",
-    location: "Mumbai, India",
-    date: "Apr 2022",
-    courses: "Financial Accounting, Business Economics, Cost Accounts, and Management Accounts",
-  },
+const BASE_TICKERS: Ticker[] = [
+  { symbol: "SPX", name: "S&P 500", price: 5123.45, decimals: 2, change: 14.32, pct: 1.2 },
+  { symbol: "NDX", name: "Nasdaq 100", price: 17842.3, decimals: 1, change: 182.5, pct: 1.03 },
+  { symbol: "RTY", name: "Russell 2000", price: 2048.6, decimals: 2, change: -12.4, pct: -0.6 },
+  { symbol: "VIX", name: "Volatility Idx", price: 14.22, decimals: 2, change: -0.48, pct: -3.26 },
+  { symbol: "NVDA", name: "NVIDIA", price: 875.28, decimals: 2, change: 18.04, pct: 2.1 },
+  { symbol: "AAPL", name: "Apple", price: 178.25, decimals: 2, change: -0.89, pct: -0.5 },
+  { symbol: "TSLA", name: "Tesla", price: 202.1, decimals: 2, change: 6.65, pct: 3.4 },
+  { symbol: "MSFT", name: "Microsoft", price: 420.55, decimals: 2, change: 6.23, pct: 1.5 },
+  { symbol: "GC=F", name: "Gold Futures", price: 2045.6, decimals: 2, change: 16.2, pct: 0.8 },
+  { symbol: "BTC-USD", name: "Bitcoin", price: 64230, decimals: 0, change: 2592, pct: 4.2 },
+  { symbol: "^TNX", name: "10Y Treasury", price: 4.21, decimals: 2, change: 0.05, pct: 1.2 },
+  { symbol: "CL=F", name: "Crude Oil", price: 78.4, decimals: 2, change: -0.87, pct: -1.1 },
 ];
 
-const EXPERIENCE = [
-  {
-    title: "Operations and Finance Manager",
-    company: "Mahalaxmi Enterprises",
-    period: "Nov 2023 - Aug 2024",
-    location: "Thane, India",
-    bullets: [
-      "Improved short-term liquidity forecasting accuracy by 10% by modeling cash flow volatility and stress-testing downside demand scenarios.",
-      "Reduced operational risk incidents by 22% by identifying recurring variance shocks in high-volume transactions and tightening review controls.",
-      "Streamlined operational workflows to reduce processing time by 15% while improving reporting consistency.",
-    ],
-  },
-  {
-    title: "Investment Banking Intern",
-    company: "StartupLanes",
-    period: "May 2023 - Nov 2023",
-    location: "Goa, India",
-    bullets: [
-      "Built three-statement models with leverage, interest coverage, and refinancing stress cases to reduce downside valuation dispersion.",
-      "Accelerated investment decision turnaround by 30% by consolidating sensitivities into a unified review dashboard.",
-    ],
-  },
-  {
-    title: "Operations Analyst",
-    company: "Mahalaxmi Enterprises",
-    period: "Jun 2022 - May 2023",
-    location: "India",
-    bullets: [
-      "Improved delivery efficiency from 82% to 93% by segmenting products statistically and refining execution workflows.",
-      "Cut fulfillment cycle time by 18-25% by isolating high-impact inefficiencies in noisy operational data.",
-    ],
-  },
-];
+const CHART_SYMBOLS = ["SPX", "NDX", "RTY", "VIX"] as const;
 
-const PROJECTS = [
-  {
-    title: "High Yield Relative Value & Risk Monitoring Engine",
-    label: "Independent Project · Jan 2026 - Present",
-    copy:
-      "Built a live relative value monitor across 35 high-yield bonds spanning six sectors, with scenario analysis tied to spread duration, carry, and roll metrics.",
-    bullets: [
-      "Modeled OAS proxies, spread duration, and carry/roll under liquidity shocks.",
-      "Simulated P&L under spread widening to decompose carry versus mark-to-market impact.",
-    ],
-    tags: ["Credit", "Relative Value", "Risk Monitoring"],
-  },
-  {
-    title: "Fallen Angel Credit Dislocation Case Study",
-    label: "Independent Project · Dec 2025",
-    copy:
-      "Quantified forced IG-to-HY index transition effects across liquid bonds by comparing spread widening and technical premium driven by ETF and mandate-based selling.",
-    bullets: [
-      "Estimated technical premium under forced-selling flows.",
-      "Modeled spread DV01 and default sensitivity to highlight upside-to-downside asymmetry.",
-    ],
-    tags: ["HY Credit", "Event Study", "Spread DV01"],
-  },
-  {
-    title: "Market Making and Execution Simulation",
-    label: "Independent Project · Sep 2025",
-    copy:
-      "Built a market-making simulator with inventory-aware bid/ask quoting, hard and soft risk limits, and execution-driven P&L attribution.",
-    bullets: [
-      "Modeled a limit order book and market-making inventory risk controls.",
-      "Corrected an execution model flaw that originally produced artificial zero-variance P&L.",
-    ],
-    tags: ["Execution", "Inventory Risk", "P&L Attribution"],
-  },
-];
+const CHART_BASES: Record<(typeof CHART_SYMBOLS)[number], number> = {
+  SPX: 5123,
+  NDX: 17840,
+  RTY: 2045,
+  VIX: 14.3,
+};
 
-const SPECIALIZED_SKILLS = [
-  {
-    title: "Tools",
-    text:
-      "Bloomberg Terminal, YAS, SRCH, Python, pandas, NumPy, SQL, advanced Excel, scenario analysis, dashboards, VBA, and time-series workflows.",
-  },
-  {
-    title: "Credit & Fixed Income",
-    text:
-      "Spread analytics, OAS proxy estimation, spread duration, carry and roll-down return, credit relative value, capital structure analysis, and fallen angel dynamics.",
-  },
-  {
-    title: "Risk & Markets",
-    text:
-      "Scenario stress testing, liquidity analysis, inventory risk management, default probability estimation, P&L attribution, and sector dispersion tracking.",
-  },
-];
+const CHART_LENGTH = 60;
+const CHART_WIDTH = 900;
+const CHART_HEIGHT = 160;
+const LABEL_SPACE = 40;
+const CANDLE_WIDTH = 10;
+const CANDLE_GAP = 5;
 
-const INITIAL_TICKERS: Ticker[] = [
-  { symbol: "VIX", name: "Volatility", price: 14.25, changePercent: -3.08 },
-  { symbol: "NVDA", name: "NVIDIA", price: 874.56, changePercent: 2.02 },
-  { symbol: "AAPL", name: "Apple", price: 178.25, changePercent: -0.5 },
-  { symbol: "TSLA", name: "Tesla", price: 201.52, changePercent: 3.11 },
-  { symbol: "MSFT", name: "Microsoft", price: 420.47, changePercent: 1.48 },
-  { symbol: "BTC-USD", name: "Bitcoin", price: 64195, changePercent: 4.15 },
-  { symbol: "^TNX", name: "10Y Treasury", price: 4.21, changePercent: 1.19 },
-  { symbol: "CL=F", name: "Crude Oil", price: 78.27, changePercent: -1.27 },
-  { symbol: "SPX", name: "S&P 500", price: 5111.32, changePercent: 0.04 },
-  { symbol: "NDX", name: "Nasdaq 100", price: 17939.6, changePercent: 1.58 },
-];
+const contactSchema = z.object({
+  name: z.string().min(1, "Name / Organization is required"),
+  email: z.string().email("Valid email address required"),
+  message: z.string().min(10, "Message must be at least 10 characters"),
+});
 
-function formatPrice(value: number) {
-  return value >= 1000 ? value.toLocaleString(undefined, { maximumFractionDigits: 2 }) : value.toFixed(2);
+type ContactFormValues = z.infer<typeof contactSchema>;
+
+function PulsePathIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-8 w-8 text-primary">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M22 12h-4l-3 9L9 3l-3 9H2" />
+    </svg>
+  );
 }
 
-function MarketCard({ ticker }: { ticker: Ticker }) {
-  const positive = ticker.changePercent >= 0;
+function MarketPathIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-8 w-8 text-primary">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v18h18" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M18 9l-5-5-5 5-5-5" />
+    </svg>
+  );
+}
+
+function BracketPathIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-8 w-8 text-primary">
+      <polyline points="16 18 22 12 16 6" />
+      <polyline points="8 6 2 12 8 18" />
+    </svg>
+  );
+}
+
+function erf(value: number) {
+  const a1 = 0.254829592;
+  const a2 = -0.284496736;
+  const a3 = 1.421413741;
+  const a4 = -1.453152027;
+  const a5 = 1.061405429;
+  const p = 0.3275911;
+  const sign = value < 0 ? -1 : 1;
+  const abs = Math.abs(value);
+  const t = 1 / (1 + p * abs);
+  const y = 1 - (((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t) * Math.exp(-abs * abs);
+
+  return sign * y;
+}
+
+function normalCdf(value: number) {
+  return 0.5 * (1 + erf(value / Math.sqrt(2)));
+}
+
+function normalPdf(value: number) {
+  return Math.exp(-0.5 * value * value) / Math.sqrt(2 * Math.PI);
+}
+
+function blackScholes(spot: number, strike: number, time: number, rate: number, vol: number) {
+  if (spot <= 0 || strike <= 0 || time <= 0 || rate <= 0 || vol <= 0) {
+    return null;
+  }
+
+  const d1 = (Math.log(spot / strike) + (rate + 0.5 * vol ** 2) * time) / (vol * Math.sqrt(time));
+  const d2 = d1 - vol * Math.sqrt(time);
+  const callPrice = spot * normalCdf(d1) - strike * Math.exp(-rate * time) * normalCdf(d2);
+  const putPrice = strike * Math.exp(-rate * time) * normalCdf(-d2) - spot * normalCdf(-d1);
+  const deltaCall = normalCdf(d1);
+  const deltaPut = deltaCall - 1;
+  const gamma = normalPdf(d1) / (spot * vol * Math.sqrt(time));
+  const thetaCall =
+    (-(spot * normalPdf(d1) * vol) / (2 * Math.sqrt(time)) - rate * strike * Math.exp(-rate * time) * normalCdf(d2)) / 365;
+  const thetaPut =
+    (-(spot * normalPdf(d1) * vol) / (2 * Math.sqrt(time)) + rate * strike * Math.exp(-rate * time) * normalCdf(-d2)) /
+    365;
+  const vega = (spot * normalPdf(d1) * Math.sqrt(time)) / 100;
+  const rhoCall = (strike * time * Math.exp(-rate * time) * normalCdf(d2)) / 100;
+  const rhoPut = (-strike * time * Math.exp(-rate * time) * normalCdf(-d2)) / 100;
+
+  return {
+    callPrice,
+    putPrice,
+    deltaCall,
+    deltaPut,
+    gamma,
+    thetaCall,
+    thetaPut,
+    vega,
+    rhoCall,
+    rhoPut,
+    d1,
+    d2,
+  };
+}
+
+function formatMetric(value: number, decimals = 4) {
+  return value.toFixed(decimals);
+}
+
+function generateCandle(lastClose: number): Candle {
+  const drift = (Math.random() - 0.48) * lastClose * 0.008;
+  const open = lastClose;
+  const close = Math.max(open + drift, 0.01);
+  const high = Math.max(open, close) + Math.random() * Math.abs(drift) * 0.8;
+  const low = Math.min(open, close) - Math.random() * Math.abs(drift) * 0.8;
+  const volume = 1000 + Math.random() * 9000;
+  const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+  return { open, high, low, close, volume, time };
+}
+
+function seedCandles(base: number, count: number) {
+  const candles: Candle[] = [];
+  let last = base;
+
+  for (let index = 0; index < count; index += 1) {
+    const candle = generateCandle(last);
+    candles.push(candle);
+    last = candle.close;
+  }
+
+  return candles;
+}
+
+function CursorTrail() {
+  const innerRef = useRef<HTMLDivElement | null>(null);
+  const outerRef = useRef<HTMLDivElement | null>(null);
+  const pointsRef = useRef<{ x: number; y: number; id: number }[]>([]);
+  const countRef = useRef(0);
+  const [points, setPoints] = useState<{ x: number; y: number; id: number }[]>([]);
+  const [enabled, setEnabled] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia("(pointer: fine)");
+    setEnabled(media.matches);
+
+    const handleChange = () => setEnabled(media.matches);
+    media.addEventListener("change", handleChange);
+
+    return () => media.removeEventListener("change", handleChange);
+  }, []);
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    const handleMove = (event: MouseEvent) => {
+      const { clientX, clientY } = event;
+
+      if (innerRef.current) {
+        innerRef.current.style.transform = `translate(${clientX - 4}px, ${clientY - 4}px)`;
+      }
+
+      if (outerRef.current) {
+        outerRef.current.style.transform = `translate(${clientX - 16}px, ${clientY - 16}px)`;
+      }
+
+      const id = countRef.current;
+      countRef.current += 1;
+      pointsRef.current = [...pointsRef.current.slice(-14), { x: clientX, y: clientY, id }];
+      setPoints([...pointsRef.current]);
+    };
+
+    window.addEventListener("mousemove", handleMove);
+    return () => window.removeEventListener("mousemove", handleMove);
+  }, [enabled]);
+
+  if (!enabled) return null;
 
   return (
-    <div className="min-w-[178px] border-l border-border/30 px-5 py-4 first:border-l-0">
-      <div className="font-mono text-sm font-bold text-foreground">{ticker.symbol}</div>
-      <div className="mt-1 font-mono text-[11px] text-muted-foreground/65">{ticker.name}</div>
-      <div className="mt-3 font-mono text-[1.65rem] font-bold leading-none text-foreground">{formatPrice(ticker.price)}</div>
+    <>
       <div
-        className={`mt-3 flex items-center gap-1 font-mono text-sm font-bold ${
-          positive ? "text-primary" : "text-destructive"
-        }`}
+        ref={innerRef}
+        className="pointer-events-none fixed left-0 top-0 z-[9999] h-2 w-2 rounded-full bg-primary shadow-[0_0_8px_2px_rgba(0,255,136,0.8)]"
+        style={{ transition: "transform 0.04s linear" }}
+      />
+      <div
+        ref={outerRef}
+        className="pointer-events-none fixed left-0 top-0 z-[9999] h-8 w-8 rounded-full border border-primary/50"
+        style={{ transition: "transform 0.12s ease-out" }}
+      />
+      {points.map((point, index) => (
+        <div
+          key={point.id}
+          className="pointer-events-none fixed left-0 top-0 z-[9998] rounded-full bg-primary"
+          style={{
+            width: `${3 * (index / Math.max(points.length, 1))}px`,
+            height: `${3 * (index / Math.max(points.length, 1))}px`,
+            opacity: (index / Math.max(points.length, 1)) * 0.35,
+            transform: `translate(${point.x - 1.5}px, ${point.y - 1.5}px)`,
+          }}
+        />
+      ))}
+    </>
+  );
+}
+
+function MatrixRainCanvas() {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    let frameId = 0;
+
+    const resize = () => {
+      canvas.width = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
+    };
+
+    resize();
+    window.addEventListener("resize", resize);
+
+    const columns = Math.floor(canvas.width / 48);
+    const glyphs = Array.from({ length: columns }, (_, index) => ({
+      x: index * 48 + Math.random() * 20,
+      y: Math.random() * -canvas.height,
+      speed: 0.3 + Math.random() * 0.5,
+      symbol: MATRIX_SYMBOLS[Math.floor(Math.random() * MATRIX_SYMBOLS.length)],
+      alpha: 0.04 + Math.random() * 0.08,
+      size: 10 + Math.random() * 4,
+    }));
+
+    const draw = () => {
+      context.clearRect(0, 0, canvas.width, canvas.height);
+
+      for (const glyph of glyphs) {
+        context.fillStyle = `rgba(0,255,136,${glyph.alpha})`;
+        context.font = `${glyph.size}px "JetBrains Mono", monospace`;
+        context.fillText(glyph.symbol, glyph.x, glyph.y);
+        glyph.y += glyph.speed;
+
+        if (glyph.y > canvas.height + 30) {
+          glyph.y = -30;
+          glyph.symbol = MATRIX_SYMBOLS[Math.floor(Math.random() * MATRIX_SYMBOLS.length)];
+        }
+      }
+
+      frameId = window.requestAnimationFrame(draw);
+    };
+
+    draw();
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.removeEventListener("resize", resize);
+    };
+  }, []);
+
+  return <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 h-full w-full opacity-100" />;
+}
+
+function ParticleField({ mouseX, mouseY }: { mouseX: MutableRefObject<number>; mouseY: MutableRefObject<number> }) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    let frameId = 0;
+
+    const resize = () => {
+      canvas.width = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
+    };
+
+    resize();
+    window.addEventListener("resize", resize);
+
+    const particles = Array.from({ length: 60 }, () => {
+      const x = Math.random() * canvas.width;
+      const y = Math.random() * canvas.height;
+
+      return {
+        x,
+        y,
+        ox: x,
+        oy: y,
+        vx: (Math.random() - 0.5) * 0.25,
+        vy: (Math.random() - 0.5) * 0.25,
+        r: Math.random() * 1.2 + 0.3,
+        a: Math.random() * 0.35 + 0.1,
+      };
+    });
+
+    const draw = () => {
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      const x = mouseX.current * canvas.width;
+      const y = mouseY.current * canvas.height;
+
+      for (const particle of particles) {
+        const dx = particle.x - x;
+        const dy = particle.y - y;
+        const distance = Math.hypot(dx, dy);
+
+        if (distance < 110) {
+          const force = (110 - distance) / 110;
+          particle.vx += (dx / Math.max(distance, 1)) * force * 1.1;
+          particle.vy += (dy / Math.max(distance, 1)) * force * 1.1;
+        }
+
+        particle.vx += (particle.ox - particle.x) * 0.012;
+        particle.vy += (particle.oy - particle.y) * 0.012;
+        particle.vx *= 0.91;
+        particle.vy *= 0.91;
+        particle.x += particle.vx;
+        particle.y += particle.vy;
+
+        context.beginPath();
+        context.arc(particle.x, particle.y, particle.r, 0, Math.PI * 2);
+        context.fillStyle = `rgba(0,255,136,${particle.a})`;
+        context.fill();
+      }
+
+      for (let i = 0; i < particles.length; i += 1) {
+        for (let j = i + 1; j < particles.length; j += 1) {
+          const dx = particles[i].x - particles[j].x;
+          const dy = particles[i].y - particles[j].y;
+          const distance = Math.hypot(dx, dy);
+
+          if (distance < 100) {
+            context.beginPath();
+            context.moveTo(particles[i].x, particles[i].y);
+            context.lineTo(particles[j].x, particles[j].y);
+            context.strokeStyle = `rgba(0,255,136,${0.07 * (1 - distance / 100)})`;
+            context.lineWidth = 0.5;
+            context.stroke();
+          }
+        }
+      }
+
+      frameId = window.requestAnimationFrame(draw);
+    };
+
+    draw();
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.removeEventListener("resize", resize);
+    };
+  }, [mouseX, mouseY]);
+
+  return <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 h-full w-full" />;
+}
+
+function FloatingMetricCard({ icon: Icon, label, base, spread, formatter, colorClass, delay, style }: MetricCardProps) {
+  const pointsCount = 14;
+  const [value, setValue] = useState(base);
+  const [series, setSeries] = useState(Array(pointsCount).fill(base));
+
+  useEffect(() => {
+    const timeout = window.setInterval(() => {
+      const next = +(base + (Math.random() - 0.5) * spread * 2).toFixed(2);
+      setValue(next);
+      setSeries((current) => [...current.slice(1), next]);
+    }, 1600 + Math.random() * 800);
+
+    return () => window.clearInterval(timeout);
+  }, [base, spread]);
+
+  const min = Math.min(...series);
+  const max = Math.max(...series);
+  const range = max - min || 0.01;
+  const points = series.map((point, index) => `${(index / (pointsCount - 1)) * 58 + 1},${17 - ((point - min) / range) * 13}`).join(" ");
+  const positive = series[series.length - 1] >= series[series.length - 2];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20, scale: 0.9 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ delay, duration: 0.5, type: "spring" }}
+      className="absolute z-20 hidden w-[148px] cursor-default flex-col gap-1.5 rounded-2xl border border-white/6 bg-[#040c18]/80 p-4 shadow-[0_16px_40px_rgba(0,0,0,0.6)] backdrop-blur-2xl transition-all duration-300 hover:border-primary/30 hover:shadow-[0_0_30px_rgba(0,255,136,0.08)] xl:flex"
+      style={style}
+    >
+      <div className="flex items-center justify-between">
+        <div className="rounded-lg bg-white/4 p-1.5">
+          <Icon className={`h-3.5 w-3.5 ${colorClass}`} />
+        </div>
+        <span className={`font-mono text-[8px] ${positive ? "text-emerald-400" : "text-red-400"}`}>{positive ? "▲" : "▼"}</span>
+      </div>
+
+      <div>
+        <p className="text-[8px] font-mono uppercase tracking-widest text-muted-foreground/50">{label}</p>
+        <motion.p
+          key={value}
+          initial={{ opacity: 0.4 }}
+          animate={{ opacity: 1 }}
+          className={`mt-0.5 font-mono text-xl font-bold leading-none ${colorClass}`}
+        >
+          {formatter(value)}
+        </motion.p>
+      </div>
+
+      <svg viewBox="0 0 60 20" className="h-[18px] w-full" preserveAspectRatio="none">
+        <polyline points={points} fill="none" stroke="currentColor" strokeWidth="1.5" className={colorClass} opacity="0.55" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </motion.div>
+  );
+}
+
+function AnimatedName() {
+  const animateLetters = (value: string, className: string, delay: number) =>
+    value.split("").map((letter, index) => (
+      <motion.span
+        key={`${value}-${index}`}
+        initial={{ opacity: 0, y: 60, rotateX: -90, filter: "blur(8px)" }}
+        animate={{ opacity: 1, y: 0, rotateX: 0, filter: "blur(0px)" }}
+        transition={{ delay: delay + index * 0.055, duration: 0.6, type: "spring", stiffness: 120 }}
+        className={`inline-block ${className}`}
+        style={{ transformOrigin: "bottom center" }}
       >
-        {positive ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
-        {positive ? "+" : ""}
-        {ticker.changePercent.toFixed(2)}%
+        {letter}
+      </motion.span>
+    ));
+
+  return (
+    <div className="mb-2 leading-none" style={{ perspective: 600 }}>
+      <h1 className="select-none text-6xl font-black tracking-tight sm:text-7xl md:text-[88px]" style={{ textShadow: "0 0 80px rgba(0,255,136,0.18)" }}>
+        {animateLetters("DHIREN", "text-white", 0.35)} {animateLetters("RAWAL", "text-primary", 0.65)}
+      </h1>
+    </div>
+  );
+}
+
+function TimelineSection({
+  title,
+  icon,
+  items,
+  education = false,
+}: {
+  title: string;
+  icon: ReactNode;
+  items: typeof EXPERIENCE | typeof EDUCATION;
+  education?: boolean;
+}) {
+  return (
+    <div>
+      <div className="mb-8 flex items-center gap-3">
+        <div className="rounded-lg bg-primary/10 p-2 text-primary">{icon}</div>
+        <h3 className="text-2xl font-bold">{title}</h3>
+      </div>
+
+      <div className="relative space-y-8 before:absolute before:inset-0 before:ml-5 before:h-full before:w-0.5 before:-translate-x-px before:bg-gradient-to-b before:from-transparent before:via-border before:to-transparent md:before:mx-auto md:before:translate-x-0">
+        {items.map((item, index) => (
+          <motion.div
+            key={item.title}
+            initial={{ opacity: 0, x: education ? 20 : -20 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: index * 0.1 }}
+            className="group relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse"
+          >
+            <div className="z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 border-primary bg-background shadow-[0_0_10px_hsla(154,100%,50%,0.3)] md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2">
+              <div className="h-3 w-3 rounded-full bg-primary" />
+            </div>
+            <div className="glass-panel ml-4 w-[calc(100%-4rem)] rounded-xl p-6 transition-colors hover:border-primary/50 md:ml-0 md:w-[calc(50%-2.5rem)]">
+              <h4 className="text-lg font-bold text-foreground">{item.title}</h4>
+              <p className="mb-3 font-mono text-sm text-primary">{item.organization}</p>
+              <div className="mb-4 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                <div className="flex items-center gap-1">
+                  <Calendar className="h-3 w-3" /> {item.date}
+                </div>
+                <div className="flex items-center gap-1">
+                  <MapPin className="h-3 w-3" /> {item.location}
+                </div>
+              </div>
+
+              {education ? (
+                <ul className="flex flex-wrap gap-2">
+                  {item.details.map((detail) => (
+                    <li key={detail} className="rounded border border-white/5 bg-secondary/80 px-2 py-1 text-xs text-muted-foreground">
+                      {detail}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <ul className="space-y-2">
+                  {item.details.map((detail) => (
+                    <li key={detail} className="flex items-start gap-2 text-sm text-muted-foreground">
+                      <span className="mt-1 text-primary">▹</span>
+                      <span>{detail}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </motion.div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function GreekCard({
+  label,
+  callValue,
+  putValue,
+  decimals = 4,
+  description,
+}: {
+  label: string;
+  callValue: number;
+  putValue?: number;
+  decimals?: number;
+  description: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5 rounded-xl border border-border/60 bg-background/60 p-3 transition-colors duration-300 hover:border-primary/30">
+      <span className="font-mono text-xs uppercase tracking-widest text-primary">{label}</span>
+      <div className="flex gap-3">
+        <div>
+          <div className="mb-0.5 font-mono text-[10px] text-muted-foreground">CALL</div>
+          <div className={`font-mono text-base font-bold ${callValue >= 0 ? "text-emerald-400" : "text-red-400"}`}>{formatMetric(callValue, decimals)}</div>
+        </div>
+        {putValue !== undefined ? (
+          <div>
+            <div className="mb-0.5 font-mono text-[10px] text-muted-foreground">PUT</div>
+            <div className={`font-mono text-base font-bold ${putValue >= 0 ? "text-emerald-400" : "text-red-400"}`}>{formatMetric(putValue, decimals)}</div>
+          </div>
+        ) : null}
+      </div>
+      <p className="font-mono text-[10px] leading-tight text-muted-foreground/70">{description}</p>
+    </div>
+  );
+}
+
+function renderCandles(candles: Candle[], activeIndex: number | null) {
+  if (!candles.length) return null;
+
+  const values = candles.flatMap((candle) => [candle.high, candle.low]);
+  const min = Math.min(...values);
+  const range = Math.max(...values) - min || 1;
+  const maxVolume = Math.max(...candles.map((candle) => candle.volume));
+  const mapY = (value: number) => CHART_HEIGHT - ((value - min) / range) * (CHART_HEIGHT - 8) - 4;
+  const mapVolume = (value: number) => (value / maxVolume) * LABEL_SPACE;
+  const totalWidth = candles.length * (CANDLE_WIDTH + CANDLE_GAP);
+  const startOffset = Math.max(0, totalWidth - CHART_WIDTH);
+  const movingAveragePoints: string[] = [];
+
+  for (let index = 0; index < candles.length; index += 1) {
+    if (index < 19) continue;
+
+    const average = candles.slice(index - 19, index + 1).reduce((sum, candle) => sum + candle.close, 0) / 20;
+    const x = index * (CANDLE_WIDTH + CANDLE_GAP) + CANDLE_WIDTH / 2 - startOffset;
+    movingAveragePoints.push(`${x},${mapY(average)}`);
+  }
+
+  const latest = candles[candles.length - 1];
+  const latestY = mapY(latest.close);
+
+  return (
+    <svg viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT + LABEL_SPACE + 8}`} className="w-full" style={{ height: CHART_HEIGHT + LABEL_SPACE + 8 }}>
+      {[0.2, 0.4, 0.6, 0.8].map((grid) => (
+        <line
+          key={grid}
+          x1={0}
+          y1={CHART_HEIGHT * (1 - grid)}
+          x2={CHART_WIDTH}
+          y2={CHART_HEIGHT * (1 - grid)}
+          stroke="rgba(255,255,255,0.04)"
+          strokeWidth={1}
+        />
+      ))}
+
+      {movingAveragePoints.length > 1 ? (
+        <polyline points={movingAveragePoints.join(" ")} fill="none" stroke="rgba(251,191,36,0.6)" strokeWidth={1.2} strokeLinejoin="round" />
+      ) : null}
+
+      {candles.map((candle, index) => {
+        const x = index * (CANDLE_WIDTH + CANDLE_GAP) - startOffset;
+        if (x + CANDLE_WIDTH < 0 || x > CHART_WIDTH) return null;
+
+        const positive = candle.close >= candle.open;
+        const color = positive ? "#22c55e" : "#ef4444";
+        const openY = mapY(candle.open);
+        const closeY = mapY(candle.close);
+        const top = mapY(Math.max(candle.open, candle.close));
+        const bottom = mapY(Math.min(candle.open, candle.close));
+        const bodyHeight = Math.max(bottom - top, 1);
+        const highlighted = activeIndex === index;
+
+        return (
+          <g key={`${candle.time}-${index}`}>
+            <line x1={x + CANDLE_WIDTH / 2} y1={mapY(candle.high)} x2={x + CANDLE_WIDTH / 2} y2={mapY(candle.low)} stroke={color} strokeWidth={1} opacity={highlighted ? 1 : 0.7} />
+            <rect x={x} y={top} width={CANDLE_WIDTH} height={bodyHeight} fill={positive ? color : "transparent"} stroke={color} strokeWidth={highlighted ? 1.5 : 1} opacity={highlighted ? 1 : 0.85} />
+            <rect x={x} y={CHART_HEIGHT + 8 + (LABEL_SPACE - mapVolume(candle.volume))} width={CANDLE_WIDTH} height={mapVolume(candle.volume)} fill={color} opacity={0.4} />
+          </g>
+        );
+      })}
+
+      <line x1={0} y1={latestY} x2={CHART_WIDTH} y2={latestY} stroke="rgba(34,197,94,0.35)" strokeWidth={1} strokeDasharray="4 3" />
+      <rect x={CHART_WIDTH - 72} y={latestY - 9} width={72} height={18} rx={3} fill="rgba(34,197,94,0.15)" />
+      <text x={CHART_WIDTH - 4} y={latestY + 4} textAnchor="end" fontSize={9} fill="#22c55e" fontFamily="monospace">
+        {latest.close.toFixed(2)}
+      </text>
+    </svg>
+  );
+}
+
+function TickerItem({ ticker }: { ticker: Ticker }) {
+  const [flash, setFlash] = useState(false);
+
+  useEffect(() => {
+    setFlash(true);
+    const timeout = window.setTimeout(() => setFlash(false), 260);
+    return () => window.clearTimeout(timeout);
+  }, [ticker.price]);
+
+  const positive = ticker.pct >= 0;
+
+  return (
+    <div className="group flex shrink-0 cursor-default select-none items-center gap-3 border-r border-white/5 px-5">
+      <div className="flex flex-col items-start">
+        <span className="font-mono text-[10px] font-bold leading-none text-white/90">{ticker.symbol}</span>
+        <span className="mt-0.5 max-w-[60px] truncate font-mono text-[8px] leading-none text-white/25">{ticker.name}</span>
+      </div>
+      <div className="flex flex-col items-end">
+        <span className={`font-mono text-[11px] font-semibold leading-none tabular-nums transition-colors duration-300 ${flash ? (positive ? "text-primary" : "text-red-400") : "text-white/85"}`}>
+          {ticker.decimals === 0 ? ticker.price.toLocaleString() : ticker.price.toFixed(ticker.decimals)}
+        </span>
+        <span className={`mt-0.5 font-mono text-[9px] font-medium leading-none tabular-nums ${positive ? "text-primary" : "text-red-400"}`}>
+          {positive ? "+" : ""}
+          {ticker.pct.toFixed(2)}%
+        </span>
+      </div>
+      <div className={`flex h-5 w-5 items-center justify-center rounded ${positive ? "bg-primary/10" : "bg-red-500/10"}`}>
+        <svg viewBox="0 0 8 8" className="h-3 w-3">
+          {positive ? <polygon points="4,1 7,7 1,7" fill="currentColor" className="text-primary" /> : <polygon points="4,7 7,1 1,1" fill="currentColor" className="text-red-400" />}
+        </svg>
       </div>
     </div>
   );
 }
 
 export default function Home() {
-  const [typedRole, setTypedRole] = useState("");
   const [roleIndex, setRoleIndex] = useState(0);
-  const [deleting, setDeleting] = useState(false);
-  const [tickers, setTickers] = useState(INITIAL_TICKERS);
-  const [repos, setRepos] = useState<Repo[]>([]);
-  const [githubStatus, setGithubStatus] = useState("Loading repositories...");
+  const [typedRole, setTypedRole] = useState("");
+  const [typingForward, setTypingForward] = useState(true);
+  const [heroTickers, setHeroTickers] = useState(BASE_TICKERS);
+  const [activeChart, setActiveChart] = useState<(typeof CHART_SYMBOLS)[number]>("SPX");
+  const [seriesMap, setSeriesMap] = useState<Record<(typeof CHART_SYMBOLS)[number], Candle[]>>(() => {
+    const seeded = {} as Record<(typeof CHART_SYMBOLS)[number], Candle[]>;
+
+    CHART_SYMBOLS.forEach((symbol) => {
+      seeded[symbol] = seedCandles(CHART_BASES[symbol], CHART_LENGTH);
+    });
+
+    return seeded;
+  });
+  const [activeCandleIndex, setActiveCandleIndex] = useState<number | null>(null);
+  const [sending, setSending] = useState(false);
+  const mouseX = useRef(0.5);
+  const mouseY = useRef(0.5);
+  const chartInterval = useRef<number | null>(null);
+  const { toast } = useToast();
+
+  const form = useForm<ContactFormValues>({
+    resolver: zodResolver(contactSchema),
+    defaultValues: {
+      name: "",
+      email: "",
+      message: "",
+    },
+  });
 
   useEffect(() => {
-    const currentRole = ROLE_ROTATION[roleIndex];
-    const timeout = window.setTimeout(
-      () => {
-        if (!deleting) {
-          const next = currentRole.slice(0, typedRole.length + 1);
-          setTypedRole(next);
+    let timeout = 0;
+    const role = HERO_ROLES[roleIndex];
 
-          if (next === currentRole) {
-            setDeleting(true);
-          }
-        } else {
-          const next = currentRole.slice(0, typedRole.length - 1);
-          setTypedRole(next);
-
-          if (!next) {
-            setDeleting(false);
-            setRoleIndex((current) => (current + 1) % ROLE_ROTATION.length);
-          }
-        }
-      },
-      deleting ? (typedRole ? 45 : 280) : typedRole === currentRole ? 1000 : 80
-    );
+    if (typingForward) {
+      if (typedRole.length < role.length) {
+        timeout = window.setTimeout(() => setTypedRole(role.slice(0, typedRole.length + 1)), 60);
+      } else {
+        timeout = window.setTimeout(() => setTypingForward(false), 1800);
+      }
+    } else if (typedRole.length > 0) {
+      timeout = window.setTimeout(() => setTypedRole((current) => current.slice(0, -1)), 30);
+    } else {
+      setRoleIndex((current) => (current + 1) % HERO_ROLES.length);
+      setTypingForward(true);
+    }
 
     return () => window.clearTimeout(timeout);
-  }, [deleting, roleIndex, typedRole]);
+  }, [roleIndex, typedRole, typingForward]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
-      setTickers((current) =>
+      setHeroTickers((current) =>
         current.map((ticker) => {
-          const priceDrift = (Math.random() - 0.5) * (ticker.price > 1000 ? 12 : ticker.symbol === "BTC-USD" ? 220 : 1.2);
-          const changeDrift = (Math.random() - 0.5) * 0.2;
+          const drift = (Math.random() - 0.48) * Math.max(ticker.price * 0.002, ticker.symbol === "BTC-USD" ? 140 : 1.2);
+          const pctDrift = (Math.random() - 0.48) * 0.18;
 
           return {
             ...ticker,
-            price: Math.max(0.01, ticker.price + priceDrift),
-            changePercent: ticker.changePercent + changeDrift,
+            price: Math.max(0.01, ticker.price + drift),
+            pct: ticker.pct + pctDrift,
+            change: ticker.change + drift,
           };
         })
       );
-    }, 1200);
+    }, 1400);
 
     return () => window.clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
+  const updateChart = useCallback(() => {
+    setSeriesMap((current) => {
+      const next = { ...current };
 
-    async function loadRepos() {
-      try {
-        const response = await fetch(
-          "https://api.github.com/users/DhirenRawal/repos?sort=updated&per_page=6&type=owner"
-        );
+      CHART_SYMBOLS.forEach((symbol) => {
+        const series = current[symbol];
+        const lastClose = series[series.length - 1]?.close ?? CHART_BASES[symbol];
+        next[symbol] = [...series.slice(-59), generateCandle(lastClose)];
+      });
 
-        if (!response.ok) {
-          throw new Error(`GitHub returned ${response.status}`);
-        }
+      return next;
+    });
 
-        const data: Repo[] = await response.json();
-        if (cancelled) return;
-
-        const featured = data.filter((repo) => !repo.fork).slice(0, 6);
-        setRepos(featured);
-        setGithubStatus(featured.length ? "GitHub sync active." : "No non-fork repositories found yet.");
-      } catch (error) {
-        if (cancelled) return;
-
-        setGithubStatus(
-          `Unable to load GitHub repositories right now. ${
-            error instanceof Error ? error.message : "Unknown error"
-          }`
-        );
-      }
-    }
-
-    loadRepos();
-    return () => {
-      cancelled = true;
-    };
+    setActiveCandleIndex(CHART_LENGTH - 1);
+    window.setTimeout(() => setActiveCandleIndex(null), 300);
   }, []);
 
+  useEffect(() => {
+    chartInterval.current = window.setInterval(updateChart, 1200);
+    return () => {
+      if (chartInterval.current) window.clearInterval(chartInterval.current);
+    };
+  }, [updateChart]);
+
+  const onHeroMouseMove = useCallback((event: ReactMouseEvent<HTMLElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    mouseX.current = (event.clientX - rect.left) / rect.width;
+    mouseY.current = (event.clientY - rect.top) / rect.height;
+  }, []);
+
+  const candles = seriesMap[activeChart] ?? [];
+  const lastCandle = candles[candles.length - 1];
+  const previousCandle = candles[candles.length - 2];
+  const chartDelta = lastCandle && previousCandle ? lastCandle.close - previousCandle.close : 0;
+  const chartPct = previousCandle ? (chartDelta / previousCandle.close) * 100 : 0;
+  const chartHigh = candles.length ? Math.max(...candles.map((candle) => candle.high)) : 0;
+  const chartLow = candles.length ? Math.min(...candles.map((candle) => candle.low)) : 0;
+  const ma20 = candles.length
+    ? candles.slice(-20).reduce((sum, candle) => sum + candle.close, 0) / Math.min(20, candles.length)
+    : 0;
+
+  const [spotInput, setSpotInput] = useState("450");
+  const [strikeInput, setStrikeInput] = useState("460");
+  const [daysInput, setDaysInput] = useState("30");
+  const [rateInput, setRateInput] = useState("5.25");
+  const [volInput, setVolInput] = useState("22");
+
+  const pricer = useMemo(() => {
+    const spotPrice = parseFloat(spotInput);
+    const strikePrice = parseFloat(strikeInput);
+    const days = parseFloat(daysInput) / 365;
+    const rate = parseFloat(rateInput) / 100;
+    const volatility = parseFloat(volInput) / 100;
+
+    return blackScholes(spotPrice, strikePrice, days, rate, volatility);
+  }, [daysInput, rateInput, spotInput, strikeInput, volInput]);
+
+  const moneyness = pricer
+    ? parseFloat(spotInput) > parseFloat(strikeInput)
+      ? "ITM"
+      : parseFloat(spotInput) < parseFloat(strikeInput)
+        ? "OTM"
+        : "ATM"
+    : null;
+
+  const marketOpen = useMemo(() => {
+    const now = new Date();
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+
+    return (hours > 9 || (hours === 9 && minutes >= 30)) && hours < 16;
+  }, [heroTickers]);
+
+  const submitContact = (values: ContactFormValues) => {
+    void values;
+    setSending(true);
+
+    window.setTimeout(() => {
+      setSending(false);
+      toast({
+        title: "Message Sent Successfully!",
+        description: "Thank you for reaching out. I will get back to you shortly.",
+      });
+      form.reset();
+    }, 1500);
+  };
+
   return (
-    <div className="relative overflow-x-hidden bg-background pt-28 text-foreground">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-[10%] top-[8%] h-72 w-72 rounded-full bg-primary/10 blur-[140px]" />
-        <div className="absolute right-[6%] top-[14%] h-80 w-80 rounded-full bg-secondary/10 blur-[160px]" />
-        <div className="absolute left-[18%] top-[38%] h-6 w-6 rounded-full bg-primary shadow-[0_0_28px_rgba(34,197,94,0.55)]" />
-        <div className="absolute right-[16%] top-[56%] h-5 w-5 rounded-full bg-primary shadow-[0_0_30px_rgba(34,197,94,0.55)]" />
-      </div>
+    <div className="flex min-h-screen flex-col bg-background font-sans text-foreground selection:bg-primary/30 selection:text-primary">
+      <CursorTrail />
 
-      <div className="terminal-grid pointer-events-none absolute inset-0 opacity-40" />
+      <section
+        id="home"
+        className="relative flex min-h-screen cursor-none flex-col items-center justify-center overflow-hidden pb-8 pt-16"
+        onMouseMove={onHeroMouseMove}
+      >
+        <div className="absolute inset-0 overflow-hidden">
+          <MatrixRainCanvas />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_50%,transparent_30%,#020810_100%)]" />
+          <ParticleField mouseX={mouseX} mouseY={mouseY} />
+        </div>
 
-      <main className="relative z-10 pb-44">
-        <section id="terminal" className="mx-auto min-h-[calc(100svh-110px)] max-w-[1280px] px-4 pb-14">
-          <div className="terminal-panel relative overflow-hidden rounded-[40px] px-6 pb-14 pt-20 md:px-12 md:pb-16 md:pt-24">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_30%_24%,rgba(34,197,94,0.18),transparent_30%),radial-gradient(circle_at_76%_18%,rgba(34,197,94,0.07),transparent_24%),linear-gradient(135deg,rgba(6,40,25,0.28),transparent_44%)]" />
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <motion.div
+            animate={{ scale: [1, 1.2, 1], opacity: [0.12, 0.18, 0.12] }}
+            transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
+            className="absolute -left-32 -top-32 h-[650px] w-[650px] rounded-full bg-primary blur-[200px]"
+          />
+          <motion.div
+            animate={{ scale: [1, 1.15, 1], opacity: [0.07, 0.12, 0.07] }}
+            transition={{ duration: 11, repeat: Infinity, ease: "easeInOut", delay: 3 }}
+            className="absolute -bottom-32 -right-32 h-[550px] w-[550px] rounded-full bg-blue-600 blur-[180px]"
+          />
+        </div>
 
-            <div className="relative z-10 flex justify-center">
-              <div className="inline-flex min-h-[58px] items-center rounded-full border border-primary/30 bg-primary/10 px-7 font-mono text-sm text-primary">
-                ● Open to roles · April 2026 ●
+        <FloatingMetricCard
+          icon={Activity}
+          label="IV SPX 30d"
+          base={14.2}
+          spread={1.2}
+          formatter={(value) => `${value.toFixed(1)}%`}
+          colorClass="text-primary"
+          delay={1.1}
+          style={{ left: "4%", top: "20%" }}
+        />
+        <FloatingMetricCard
+          icon={TrendingUp}
+          label="Sharpe Ratio"
+          base={2.41}
+          spread={0.12}
+          formatter={(value) => value.toFixed(2)}
+          colorClass="text-emerald-400"
+          delay={1.2}
+          style={{ left: "4%", top: "58%" }}
+        />
+        <FloatingMetricCard
+          icon={Sigma}
+          label="Portfolio β"
+          base={0.87}
+          spread={0.04}
+          formatter={(value) => value.toFixed(2)}
+          colorClass="text-sky-400"
+          delay={1.3}
+          style={{ right: "4%", top: "20%" }}
+        />
+        <FloatingMetricCard
+          icon={ShieldAlert}
+          label="VaR 95%"
+          base={3.2}
+          spread={0.35}
+          formatter={(value) => `−${value.toFixed(1)}%`}
+          colorClass="text-amber-400"
+          delay={1.4}
+          style={{ right: "4%", top: "58%" }}
+        />
+
+        <div className="relative z-10 flex w-full max-w-2xl flex-col items-center px-6 text-center">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.85 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.15, type: "spring" }}
+            className="mb-8 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 font-mono text-xs text-primary shadow-[0_0_20px_rgba(0,255,136,0.12)]"
+          >
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
+            Open to roles · April 2026
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ delay: 0.2, duration: 0.8, type: "spring", stiffness: 90 }}
+            className="relative mb-10"
+          >
+            <motion.div
+              animate={{ opacity: [0.2, 0.5, 0.2], scale: [1, 1.07, 1] }}
+              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+              className="absolute -inset-8 rounded-full bg-primary/20 blur-3xl"
+            />
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+              className="absolute -inset-5 rounded-full border border-dashed border-primary/15"
+            />
+            <motion.div
+              animate={{ rotate: -360 }}
+              transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
+              className="absolute -inset-[7px] rounded-full"
+              style={{ background: "conic-gradient(from 0deg, transparent 55%, #00ff88 75%, transparent 100%)" }}
+            />
+            <div className="absolute -inset-[4px] rounded-full bg-background" />
+            <div className="relative h-[210px] w-[210px] overflow-hidden rounded-full ring-2 ring-primary/25 shadow-[0_0_50px_rgba(0,255,136,0.18),inset_0_0_30px_rgba(0,0,0,0.5)] sm:h-[250px] sm:w-[250px]">
+              <img src="/dhiren-portrait.png" alt="Dhiren Rawal" className="h-full w-full object-cover object-top" />
+              <motion.div
+                animate={{ y: ["-100%", "220%"] }}
+                transition={{ duration: 2.8, repeat: Infinity, ease: "linear", repeatDelay: 5 }}
+                className="pointer-events-none absolute inset-x-0 h-10 bg-gradient-to-b from-transparent via-primary/15 to-transparent"
+              />
+            </div>
+          </motion.div>
+
+          <AnimatedName />
+
+          <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.05 }} className="mb-5 font-mono text-[10px] uppercase tracking-[0.28em] text-muted-foreground/40">
+            MQF · UCSD Rady School of Management · New York
+          </motion.p>
+
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.1 }} className="mb-6 flex items-center justify-center gap-3">
+            <div className="h-px w-10 bg-gradient-to-r from-transparent to-primary/50" />
+            <span className="min-w-[250px] text-center font-mono text-base text-primary sm:text-lg" style={{ textShadow: "0 0 24px rgba(0,255,136,0.6)" }}>
+              {typedRole}
+              <motion.span animate={{ opacity: [1, 0, 1] }} transition={{ duration: 1, repeat: Infinity }}>
+                █
+              </motion.span>
+            </span>
+            <div className="h-px w-10 bg-gradient-to-l from-transparent to-primary/50" />
+          </motion.div>
+
+          <motion.p
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1.15 }}
+            className="mb-8 max-w-md text-sm leading-relaxed text-muted-foreground/55 sm:text-base"
+          >
+            Building automated trading systems, volatility surface calibrators, and risk analytics pipelines — where rigorous mathematics meets production-grade code.
+          </motion.p>
+
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.2 }} className="mb-10 flex flex-wrap justify-center gap-3">
+            <a
+              href="#projects"
+              className="inline-flex min-h-10 items-center gap-2 rounded-md border border-primary bg-primary px-8 font-semibold text-primary-foreground shadow-[0_0_24px_rgba(0,255,136,0.35)] transition-all duration-200 hover:scale-105 hover:shadow-[0_0_44px_rgba(0,255,136,0.6)]"
+            >
+              View Projects <ArrowRight className="h-4 w-4" />
+            </a>
+            <a
+              href="/Dhiren_Rawal_Resume.pdf"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex min-h-10 items-center gap-2 rounded-md border border-primary/20 bg-background/15 px-8 backdrop-blur-sm transition-all duration-200 hover:scale-105 hover:border-primary/55 hover:bg-primary/10 hover:shadow-[0_0_22px_rgba(0,255,136,0.18)]"
+            >
+              <Download className="h-4 w-4" /> Download CV
+            </a>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1.28 }}
+            className="mb-8 grid w-full max-w-sm grid-cols-4 divide-x divide-border/25 overflow-hidden rounded-2xl border border-border/20 bg-background/15 backdrop-blur-md"
+          >
+            {[
+              ["5+", "YRS EXP"],
+              ["20+", "PROJECTS"],
+              ["3", "DOMAINS"],
+              ["A+", "FOCUS"],
+            ].map(([value, label]) => (
+              <motion.div key={label} whileHover={{ backgroundColor: "rgba(0,255,136,0.04)" }} className="flex cursor-default flex-col items-center px-2 py-4">
+                <span className="font-mono text-xl font-bold text-foreground sm:text-2xl" style={{ textShadow: "0 0 14px rgba(0,255,136,0.15)" }}>
+                  {value}
+                </span>
+                <span className="mt-0.5 font-mono text-[8px] tracking-widest text-muted-foreground/45">{label}</span>
+              </motion.div>
+            ))}
+          </motion.div>
+
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.38 }} className="flex flex-wrap justify-center gap-2">
+            {HERO_SKILLS.map((skill, index) => (
+              <motion.span
+                key={skill}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 1.4 + index * 0.04 }}
+                whileHover={{
+                  scale: 1.12,
+                  borderColor: "rgba(0,255,136,0.5)",
+                  color: "#00ff88",
+                  boxShadow: "0 0 12px rgba(0,255,136,0.25)",
+                }}
+                className="cursor-default rounded-full border border-primary/10 bg-primary/5 px-3 py-1 font-mono text-[10px] text-muted-foreground/55 transition-all duration-200"
+              >
+                {skill}
+              </motion.span>
+            ))}
+          </motion.div>
+        </div>
+
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1, y: [0, 7, 0] }}
+          transition={{ delay: 1.7, y: { duration: 1.6, repeat: Infinity, ease: "easeInOut" } }}
+          className="pointer-events-none absolute bottom-7 left-1/2 z-10 flex -translate-x-1/2 flex-col items-center gap-1 text-muted-foreground/22"
+        >
+          <span className="font-mono text-[9px] uppercase tracking-widest">Scroll</span>
+          <ChevronDown className="h-4 w-4" />
+        </motion.div>
+      </section>
+
+      <section className="w-full border-y border-border/50 bg-black/40 backdrop-blur-sm">
+        <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-1">
+              <div className="mr-3 flex items-center gap-1.5">
+                <Wifi className="h-3 w-3 animate-pulse text-primary" />
+                <span className="font-mono text-[10px] uppercase tracking-widest text-primary">Live Feed</span>
               </div>
+              {CHART_SYMBOLS.map((symbol) => (
+                <button
+                  key={symbol}
+                  type="button"
+                  onClick={() => setActiveChart(symbol)}
+                  className={`rounded px-3 py-1 font-mono text-xs transition-all duration-200 ${
+                    activeChart === symbol
+                      ? "border border-primary/40 bg-primary/20 text-primary"
+                      : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
+                  }`}
+                >
+                  {symbol}
+                </button>
+              ))}
             </div>
 
-            <div className="relative z-10 mx-auto mt-10 grid max-w-[1120px] gap-10">
-              <div className="mx-auto flex w-full max-w-[520px] justify-center">
-                <div className="terminal-orbit relative aspect-square w-full max-w-[380px] rounded-full p-4 md:max-w-[430px]">
-                  <div className="absolute inset-[18px] rounded-full border border-dashed border-primary/20" />
-                  <img
-                    src="/dhiren-portrait.png"
-                    alt="Dhiren Rawal"
-                    className="relative z-10 h-full w-full rounded-full border-[6px] border-primary/80 object-cover shadow-[0_0_0_10px_rgba(5,13,18,0.96),0_0_60px_rgba(34,197,94,0.15)]"
-                  />
+            {lastCandle ? (
+              <div className="flex items-center gap-5 font-mono text-xs">
+                <motion.span key={lastCandle.close} initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} className="text-base font-bold text-foreground">
+                  {lastCandle.close.toFixed(2)}
+                </motion.span>
+                <span className={`flex items-center gap-1 ${chartDelta >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                  {chartDelta >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                  {chartDelta >= 0 ? "+" : ""}
+                  {chartDelta.toFixed(2)} ({chartPct >= 0 ? "+" : ""}
+                  {chartPct.toFixed(2)}%)
+                </span>
+                <span className="hidden text-muted-foreground sm:inline">
+                  H: <span className="text-foreground">{chartHigh.toFixed(2)}</span>
+                </span>
+                <span className="hidden text-muted-foreground sm:inline">
+                  L: <span className="text-foreground">{chartLow.toFixed(2)}</span>
+                </span>
+                <span className="hidden text-muted-foreground md:inline">
+                  MA20: <span className="text-yellow-400">{ma20.toFixed(2)}</span>
+                </span>
+                <span className="text-muted-foreground/50">{lastCandle.time}</span>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="relative w-full overflow-hidden rounded-xl border border-border/30 bg-background/30 p-2">
+            {renderCandles(candles, activeCandleIndex)}
+            <div className="pointer-events-none absolute left-2 top-2 flex h-[160px] flex-col justify-between">
+              {[chartHigh, (chartHigh + chartLow) / 2, chartLow].map((value, index) => (
+                <span key={index} className="font-mono text-[9px] text-muted-foreground/50">
+                  {Number.isFinite(value) ? value.toFixed(1) : "0.0"}
+                </span>
+              ))}
+            </div>
+
+            <div className="pointer-events-none absolute bottom-10 right-3 flex items-center gap-3 font-mono text-[9px]">
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-[1.5px] w-4 bg-yellow-400/60" /> MA(20)
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-2.5 w-2.5 border border-emerald-500 bg-emerald-500/40" /> Bull
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-2.5 w-2.5 border border-red-500" /> Bear
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="experience" className="relative border-y border-border bg-secondary/20 py-24">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="mb-16 text-center">
+            <h2 className="mb-4 text-3xl font-bold md:text-4xl">
+              Career <span className="text-primary">Trajectory</span>
+            </h2>
+            <p className="mx-auto max-w-2xl text-muted-foreground">A continuous journey of blending financial acumen with quantitative rigor.</p>
+          </motion.div>
+
+          <div className="grid grid-cols-1 gap-12 lg:grid-cols-2">
+            <TimelineSection title="Experience" icon={<BriefcaseBusiness className="h-5 w-5" />} items={EXPERIENCE} />
+            <TimelineSection title="Education" icon={<GraduationCap className="h-5 w-5" />} items={EDUCATION} education />
+          </div>
+        </div>
+      </section>
+
+      <section id="projects" className="relative overflow-hidden py-24">
+        <div className="pointer-events-none absolute inset-0 bg-background" />
+        <div className="pointer-events-none absolute right-0 top-1/2 h-1/2 w-1/3 -translate-y-1/2 rounded-full bg-primary/5 blur-[120px]" />
+        <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="mb-16">
+            <div className="mb-4 flex items-center gap-3">
+              <LineChart className="h-6 w-6 text-primary" />
+              <h2 className="font-display text-3xl font-bold md:text-4xl">
+                Featured <span className="text-primary">Models</span>
+              </h2>
+            </div>
+            <p className="max-w-2xl font-mono text-sm text-muted-foreground">$ ls -la ./projects | grep "quant"</p>
+          </motion.div>
+
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
+            {PROJECTS.map((project, index) => {
+              const Icon = project.icon;
+
+              return (
+                <motion.div
+                  key={project.title}
+                  initial={{ opacity: 0, y: 30 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: index * 0.15 }}
+                  className="terminal-border glass-panel group flex h-full flex-col overflow-hidden rounded-xl transition-transform duration-300 hover:-translate-y-2"
+                >
+                  <div className="flex items-center justify-between border-b border-border bg-secondary/50 p-4">
+                    <div className="flex gap-2">
+                      <div className="h-3 w-3 rounded-full bg-border transition-colors group-hover:bg-red-500/80" />
+                      <div className="h-3 w-3 rounded-full bg-border transition-colors delay-75 group-hover:bg-yellow-500/80" />
+                      <div className="h-3 w-3 rounded-full bg-border transition-colors delay-150 group-hover:bg-green-500/80" />
+                    </div>
+                    <span className="font-mono text-xs text-muted-foreground">{project.date}</span>
+                  </div>
+
+                  <div className="flex flex-1 flex-col p-6">
+                    <div className="mb-6 opacity-80 transition-opacity group-hover:opacity-100">
+                      <Icon />
+                    </div>
+                    <h3 className="mb-3 text-xl font-bold transition-colors group-hover:text-primary">{project.title}</h3>
+                    <p className="mb-6 flex-1 text-sm text-muted-foreground">{project.description}</p>
+                    <div className="mb-6 flex flex-wrap gap-2">
+                      {project.tags.map((tag) => (
+                        <span key={tag} className="rounded bg-primary/10 px-2 py-1 font-mono text-xs text-primary">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="mt-auto flex items-center gap-4 border-t border-border pt-4">
+                      <button type="button" className="flex items-center gap-2 p-0 text-sm hover:text-primary">
+                        <ArrowRight className="h-4 w-4" /> View Case Study
+                      </button>
+                      <button type="button" className="flex items-center gap-2 p-0 text-sm text-muted-foreground hover:text-foreground">
+                        <Github className="h-4 w-4" /> Source
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      <section id="pricer" className="relative overflow-hidden py-24">
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-[size:32px_32px]" />
+        <div className="pointer-events-none absolute right-1/4 top-0 h-80 w-80 rounded-full bg-primary/5 blur-[100px]" />
+        <div className="relative z-10 mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="mb-12 text-center">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 font-mono text-xs text-primary">
+              <TerminalSquare className="h-3.5 w-3.5" />
+              Live Black-Scholes Engine
+            </div>
+            <h2 className="mb-3 font-display text-3xl font-bold md:text-4xl">
+              Options <span className="text-primary">Pricer</span>
+            </h2>
+            <p className="mx-auto max-w-xl text-sm text-muted-foreground">
+              Real-time European option pricing with full Greeks. Adjust the parameters and watch the model recalibrate instantly.
+            </p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.1 }}
+            className="grid grid-cols-1 gap-6 lg:grid-cols-[380px_1fr]"
+          >
+            <div className="flex flex-col gap-5 rounded-2xl border border-border bg-card p-6 shadow-xl shadow-black/20">
+              <div className="flex items-center gap-2 border-b border-border pb-4">
+                <div className="flex gap-1.5">
+                  <span className="h-3 w-3 rounded-full bg-red-500/80" />
+                  <span className="h-3 w-3 rounded-full bg-yellow-500/80" />
+                  <span className="h-3 w-3 rounded-full bg-green-500/80" />
                 </div>
+                <span className="ml-1 font-mono text-xs text-muted-foreground">bs_pricer.py</span>
               </div>
 
-              <div className="mx-auto max-w-[1080px] text-center">
-                <h1 className="text-[clamp(3.6rem,11vw,7.6rem)] font-extrabold leading-[0.93] tracking-[-0.08em]">
-                  <span className="text-white">DHIREN </span>
-                  <span className="text-primary">RAWAL</span>
-                </h1>
-
-                <p className="mt-5 font-mono text-[0.92rem] uppercase tracking-[0.32em] text-muted-foreground/60">
-                  MQF · UCSD RADY SCHOOL OF MANAGEMENT · NEW YORK
-                </p>
-
-                <div className="mx-auto mt-8 flex max-w-[560px] items-center justify-center gap-4">
-                  <span className="h-px flex-1 bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
-                  <p className="font-mono text-[clamp(1.3rem,2.4vw,1.95rem)] text-primary">
-                    {typedRole}
-                    <span className="animate-pulse">█</span>
-                  </p>
-                  <span className="h-px flex-1 bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
+              {[
+                { label: "Spot Price (S)", value: spotInput, setter: setSpotInput, unit: "$", hint: "Current underlying price" },
+                { label: "Strike Price (K)", value: strikeInput, setter: setStrikeInput, unit: "$", hint: "Option strike price" },
+                { label: "Days to Expiry (T)", value: daysInput, setter: setDaysInput, unit: "d", hint: "Calendar days until expiration" },
+                { label: "Risk-Free Rate (r)", value: rateInput, setter: setRateInput, unit: "%", hint: "Annualized risk-free rate (e.g. 5.25)" },
+                { label: "Implied Volatility (σ)", value: volInput, setter: setVolInput, unit: "%", hint: "Annualized volatility" },
+              ].map((field) => (
+                <div key={field.label} className="flex flex-col gap-1">
+                  <label className="font-mono text-xs uppercase tracking-widest text-muted-foreground">{field.label}</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={field.value}
+                      onChange={(event) => field.setter(event.target.value)}
+                      className="w-full rounded-lg border border-border bg-background px-3 py-2 pr-10 font-mono text-sm text-foreground transition-colors focus:border-primary/70 focus:outline-none focus:ring-1 focus:ring-primary/30"
+                      step="any"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs text-muted-foreground">{field.unit}</span>
+                  </div>
+                  <span className="font-mono text-[10px] text-muted-foreground/60">{field.hint}</span>
                 </div>
+              ))}
 
-                <p className="mx-auto mt-8 max-w-[840px] text-[clamp(1.08rem,1.9vw,1.5rem)] leading-relaxed text-muted-foreground">
-                  Building automated trading systems, volatility surface calibrators, and fixed income analytics
-                  pipelines where rigorous mathematics meets production-grade code.
-                </p>
-
-                <div className="mt-10 flex flex-wrap items-center justify-center gap-5">
-                  <a
-                    href="/#models"
-                    className="inline-flex min-h-[78px] items-center justify-center rounded-[24px] bg-primary px-10 text-[clamp(1.1rem,2vw,1.45rem)] font-bold text-primary-foreground shadow-[0_0_30px_rgba(34,197,94,0.28)] transition-transform duration-300 hover:-translate-y-0.5"
-                  >
-                    View Projects <ChevronRight className="ml-2 h-5 w-5" />
-                  </a>
-                  <a
-                    href="/Dhiren_Rawal_Resume.pdf"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex min-h-[78px] items-center justify-center rounded-[24px] border border-primary/25 bg-background/60 px-10 text-[clamp(1rem,1.8vw,1.3rem)] font-bold text-primary transition-transform duration-300 hover:-translate-y-0.5"
-                  >
-                    <FileDown className="mr-3 h-5 w-5" />
-                    Download CV
-                  </a>
+              {moneyness ? (
+                <div
+                  className={`inline-flex items-center gap-1.5 self-start rounded-full border px-3 py-1 font-mono text-xs font-bold ${
+                    moneyness === "ITM"
+                      ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-400"
+                      : moneyness === "OTM"
+                        ? "border-red-400/30 bg-red-400/10 text-red-400"
+                        : "border-yellow-400/30 bg-yellow-400/10 text-yellow-400"
+                  }`}
+                >
+                  <Sigma className="h-3 w-3" />
+                  {moneyness} —{" "}
+                  {parseFloat(spotInput) > parseFloat(strikeInput)
+                    ? "Spot above Strike"
+                    : parseFloat(spotInput) < parseFloat(strikeInput)
+                      ? "Spot below Strike"
+                      : "At the Money"}
                 </div>
+              ) : null}
+            </div>
 
-                <div className="mx-auto mt-12 grid max-w-[760px] grid-cols-2 overflow-hidden rounded-[28px] border border-border/40 bg-background/35 md:grid-cols-4">
-                  {STATS.map((stat, index) => (
-                    <div
-                      key={stat.label}
-                      className={`px-5 py-7 ${index > 0 ? "border-l border-border/30" : ""} ${
-                        index > 1 ? "border-t border-border/30 md:border-t-0" : ""
-                      }`}
-                    >
-                      <div className="text-[clamp(2rem,4vw,3rem)] font-extrabold">{stat.value}</div>
-                      <div className="mt-2 font-mono text-xs uppercase tracking-[0.28em] text-muted-foreground/50">
-                        {stat.label}
+            <div className="flex flex-col gap-4">
+              {pricer ? (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <motion.div initial={{ scale: 0.97 }} animate={{ scale: 1 }} className="flex flex-col gap-1 rounded-2xl border border-emerald-400/30 bg-emerald-400/10 p-5">
+                      <div className="mb-1 flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-emerald-400">
+                        <ArrowUpRight className="h-3.5 w-3.5" /> Call Option
                       </div>
-                    </div>
-                  ))}
-                </div>
+                      <div className="font-mono text-4xl font-bold text-emerald-400">${formatMetric(pricer.callPrice, 2)}</div>
+                      <div className="font-mono text-xs text-muted-foreground">Fair Value / Contract</div>
+                    </motion.div>
 
-                <div className="mx-auto mt-10 flex max-w-[980px] flex-wrap items-center justify-center gap-3">
-                  {HERO_SKILLS.map((skill) => (
-                    <span
-                      key={skill}
-                      className="rounded-full border border-primary/15 bg-primary/5 px-5 py-3 font-mono text-sm text-muted-foreground"
-                    >
+                    <motion.div initial={{ scale: 0.97 }} animate={{ scale: 1 }} className="flex flex-col gap-1 rounded-2xl border border-red-400/30 bg-red-400/10 p-5">
+                      <div className="mb-1 flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-red-400">
+                        <ArrowDownRight className="h-3.5 w-3.5" /> Put Option
+                      </div>
+                      <div className="font-mono text-4xl font-bold text-red-400">${formatMetric(pricer.putPrice, 2)}</div>
+                      <div className="font-mono text-xs text-muted-foreground">Fair Value / Contract</div>
+                    </motion.div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="rounded-xl border border-border bg-background/50 p-3 font-mono">
+                      <div className="mb-1 text-[10px] uppercase tracking-widest text-muted-foreground">d₁</div>
+                      <div className="text-lg font-bold text-foreground">{formatMetric(pricer.d1)}</div>
+                    </div>
+                    <div className="rounded-xl border border-border bg-background/50 p-3 font-mono">
+                      <div className="mb-1 text-[10px] uppercase tracking-widest text-muted-foreground">d₂</div>
+                      <div className="text-lg font-bold text-foreground">{formatMetric(pricer.d2)}</div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    <GreekCard label="Δ Delta" callValue={pricer.deltaCall} putValue={pricer.deltaPut} decimals={4} description="Price sensitivity to spot" />
+                    <GreekCard label="Γ Gamma" callValue={pricer.gamma} decimals={6} description="Delta sensitivity to spot" />
+                    <GreekCard label="Θ Theta" callValue={pricer.thetaCall} putValue={pricer.thetaPut} decimals={4} description="Time decay per day" />
+                    <GreekCard label="ν Vega" callValue={pricer.vega} decimals={4} description="Sensitivity per 1% vol" />
+                    <GreekCard label="ρ Rho" callValue={pricer.rhoCall} putValue={pricer.rhoPut} decimals={4} description="Sensitivity per 1% rate" />
+                    <div className="flex flex-col gap-1.5 rounded-xl border border-border/60 bg-background/60 p-3">
+                      <span className="font-mono text-xs uppercase tracking-widest text-primary">Put-Call</span>
+                      <div className="font-mono text-base font-bold text-foreground">{formatMetric(Math.abs(pricer.callPrice - pricer.putPrice), 4)}</div>
+                      <p className="font-mono text-[10px] leading-tight text-muted-foreground/70">Parity spread (C − P)</p>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="flex min-h-[300px] items-center justify-center font-mono text-sm text-muted-foreground">
+                  Enter valid parameters to compute prices.
+                </div>
+              )}
+            </div>
+          </motion.div>
+
+          <motion.p initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} className="mt-8 text-center font-mono text-[11px] text-muted-foreground/50">
+            C = S·N(d₁) − K·e<sup>−rT</sup>·N(d₂) | P = K·e<sup>−rT</sup>·N(−d₂) − S·N(−d₁) | European exercise, no dividends assumed
+          </motion.p>
+        </div>
+      </section>
+
+      <section id="about" className="relative overflow-hidden border-y border-border bg-secondary/30 py-24">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute left-1/2 top-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/5 blur-[120px]" />
+        </div>
+
+        <div className="relative z-10 mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="mb-16 text-center">
+            <h2 className="mb-4 font-display text-3xl font-bold md:text-4xl">
+              About <span className="text-primary">Me</span>
+            </h2>
+            <p className="mx-auto max-w-xl text-muted-foreground">The person behind the models and the code.</p>
+          </motion.div>
+
+          <div className="grid grid-cols-1 items-center gap-16 lg:grid-cols-2">
+            <motion.div
+              initial={{ opacity: 0, x: -40 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.7 }}
+              className="flex justify-center lg:justify-end"
+            >
+              <div className="group relative">
+                <div className="absolute -inset-2 rounded-3xl bg-gradient-to-br from-primary/40 via-primary/10 to-transparent opacity-70 blur-sm transition-opacity duration-500 group-hover:opacity-100" />
+                <div className="relative w-72 overflow-hidden rounded-2xl border border-primary/30 shadow-2xl shadow-primary/10 sm:w-80">
+                  <img src="/dhiren-portrait.png" alt="Dhiren Rawal" className="h-full w-full object-cover object-center grayscale transition-all duration-700 group-hover:grayscale-0" />
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-background/95 to-transparent px-6 pb-5 pt-10">
+                    <h3 className="text-xl font-bold tracking-tight text-white">Dhiren Rawal</h3>
+                    <p className="mt-0.5 font-mono text-sm text-primary">MQF Candidate · UCSD Rady</p>
+                  </div>
+                </div>
+                <motion.div
+                  animate={{ y: [0, -8, 0] }}
+                  transition={{ repeat: Infinity, duration: 3.5, ease: "easeInOut" }}
+                  className="absolute -right-4 -top-4 flex items-center gap-2 rounded-xl border border-primary/30 bg-background px-3 py-2 shadow-xl"
+                >
+                  <GraduationCap className="h-4 w-4 text-primary" />
+                  <span className="font-mono text-xs text-foreground">Class of 2025</span>
+                </motion.div>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, x: 40 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.7, delay: 0.1 }}
+              className="flex flex-col gap-6"
+            >
+              <div>
+                <p className="mb-4 text-base leading-relaxed text-muted-foreground">
+                  I'm a quantitative finance professional with a strong foundation in mathematical modeling, derivatives pricing, and risk analytics. My background bridges both the operational and analytical sides of finance — from managing liquidity forecasting at a family enterprise to building automated volatility surface calibration tools from scratch.
+                </p>
+                <p className="text-base leading-relaxed text-muted-foreground">
+                  At UCSD's Rady School of Management, I've deepened my expertise in structured products, fixed income, and market microstructure — while developing a passion for translating complex financial theory into production-grade Python and SQL systems.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2.5 text-sm">
+                {[
+                  { icon: MapPin, text: "New York, NY" },
+                  { icon: Mail, text: "dhiren.rawal2001@gmail.com" },
+                  { icon: Phone, text: "+1 (858) 214-0637" },
+                ].map(({ icon: Icon, text }) => (
+                  <div key={text} className="flex items-center gap-3 text-muted-foreground">
+                    <Icon className="h-4 w-4 shrink-0 text-primary" />
+                    <span className="font-mono">{text}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div>
+                <div className="mb-3 flex items-center gap-2">
+                  <TerminalSquare className="h-4 w-4 text-primary" />
+                  <span className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Core Expertise</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {CORE_EXPERTISE.map((skill) => (
+                    <span key={skill} className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 font-mono text-xs text-primary">
                       {skill}
                     </span>
                   ))}
                 </div>
               </div>
-            </div>
-          </div>
-        </section>
 
-        <section id="about" className="mx-auto max-w-[1280px] px-4 pt-10">
-          <motion.div
-            initial={{ opacity: 0, y: 18 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.2 }}
-            className="terminal-panel relative overflow-hidden rounded-[36px] px-6 py-12 md:px-10 md:py-14"
-          >
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_24%_70%,rgba(34,197,94,0.08),transparent_22%)]" />
-
-            <div className="relative z-10 text-center">
-              <h2 className="text-[clamp(2.5rem,5vw,4.8rem)] font-extrabold tracking-[-0.06em]">
-                About <span className="text-primary">Me</span>
-              </h2>
-              <p className="mx-auto mt-4 max-w-[760px] text-[clamp(1.05rem,1.8vw,1.4rem)] text-muted-foreground">
-                The person behind the models and the code.
-              </p>
-            </div>
-
-            <div className="relative z-10 mt-12 grid items-start gap-10 lg:grid-cols-[1.08fr_0.92fr]">
-              <div className="order-2 lg:order-1">
-                <p className="text-[1.1rem] leading-relaxed text-muted-foreground md:text-[1.2rem]">
-                  I’m a quantitative finance graduate student focused on derivatives, structured products, fixed income,
-                  and market microstructure. My work sits at the intersection of financial reasoning, risk analytics,
-                  and production-ready systems.
-                </p>
-                <p className="mt-6 text-[1.1rem] leading-relaxed text-muted-foreground md:text-[1.2rem]">
-                  My background bridges both the operational and analytical sides of finance, from managing liquidity
-                  forecasting at a family enterprise to building automated volatility surface calibration tools and
-                  execution models from scratch.
-                </p>
-
-                <div className="mt-8 space-y-4">
-                  <div className="flex items-center gap-4 font-mono text-[1.05rem] text-muted-foreground">
-                    <MapPin className="h-5 w-5 text-primary" />
-                    New York, NY
-                  </div>
-                  <div className="flex items-center gap-4 font-mono text-[1.05rem] text-muted-foreground">
-                    <Mail className="h-5 w-5 text-primary" />
-                    dhiren.rawal2001@gmail.com
-                  </div>
-                  <div className="flex items-center gap-4 font-mono text-[1.05rem] text-muted-foreground">
-                    <Phone className="h-5 w-5 text-primary" />
-                    +1 (858) 214-0637
-                  </div>
-                </div>
-
-                <div className="mt-9">
-                  <p className="font-mono text-sm uppercase tracking-[0.24em] text-muted-foreground/70">Core Expertise</p>
-                  <div className="mt-5 flex flex-wrap gap-3">
-                    {CORE_EXPERTISE.map((skill) => (
-                      <span
-                        key={skill}
-                        className="rounded-full border border-primary/20 bg-primary/5 px-4 py-3 font-mono text-sm text-primary"
-                      >
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="mt-10 flex items-center gap-3 rounded-[22px] border border-primary/15 bg-primary/10 px-5 py-4 font-mono text-[1.08rem] text-foreground">
-                  <span className="h-3 w-3 rounded-full bg-primary shadow-[0_0_18px_rgba(34,197,94,0.7)]" />
+              <div className="mt-2 flex items-center gap-2.5 rounded-xl border border-primary/15 bg-primary/5 p-3">
+                <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-primary" />
+                <span className="font-mono text-sm text-foreground">
                   Open to full-time opportunities starting <span className="text-primary">April 2026</span>
-                </div>
+                </span>
               </div>
-
-              <div className="order-1 lg:order-2">
-                <div className="relative mx-auto max-w-[430px] rounded-[32px] border border-primary/20 bg-gradient-to-b from-primary/10 to-background/30 p-4 shadow-[0_0_0_1px_rgba(74,222,128,0.08),0_30px_100px_rgba(0,0,0,0.45)] transition-transform duration-500 hover:-translate-y-1">
-                  <div className="absolute right-3 top-6 rounded-full border border-primary/20 bg-background px-4 py-3 font-mono text-base text-foreground shadow-xl md:-right-4 md:top-8 md:px-5 md:text-lg">
-                    Class of 2025
-                  </div>
-                  <img
-                    src="/dhiren-portrait.png"
-                    alt="Dhiren Rawal portrait"
-                    className="h-[480px] w-full rounded-[26px] object-cover object-top shadow-[0_0_45px_rgba(34,197,94,0.14)] md:h-[580px]"
-                  />
-                  <div className="absolute inset-x-10 bottom-10 rounded-[24px] bg-gradient-to-t from-[rgba(5,10,16,0.92)] to-transparent px-5 pb-2 pt-14">
-                    <p className="text-[2rem] font-bold tracking-[-0.05em]">Dhiren Rawal</p>
-                    <p className="mt-2 font-mono text-lg text-primary">MQF Candidate · UCSD Rady</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        </section>
-
-        <section id="trajectory" className="mx-auto max-w-[1280px] px-4 pt-24">
-          <div className="text-center">
-            <h2 className="text-[clamp(2.4rem,4.8vw,4.8rem)] font-extrabold tracking-[-0.06em]">
-              Career <span className="text-primary">Trajectory</span>
-            </h2>
-            <p className="mx-auto mt-4 max-w-[760px] text-[clamp(1.02rem,1.8vw,1.35rem)] text-muted-foreground">
-              A continuous journey of blending financial acumen with quantitative rigor.
-            </p>
+            </motion.div>
           </div>
+        </div>
+      </section>
 
-          <div className="mt-16 flex items-center gap-4">
-            <div className="flex h-[72px] w-[72px] items-center justify-center rounded-[22px] bg-primary/10 text-primary">
-              <BriefcaseBusiness className="h-8 w-8" />
-            </div>
-            <h3 className="text-[clamp(2rem,4vw,3rem)] font-bold tracking-[-0.05em]">Experience</h3>
-          </div>
-
-          <div className="relative mt-12 pl-10 md:pl-40">
-            <div className="absolute bottom-4 left-3 top-4 w-px bg-gradient-to-b from-primary/35 via-primary/10 to-border/20 md:left-24" />
-
-            <div className="grid gap-6">
-              {EXPERIENCE.map((item, index) => (
-                <motion.article
-                  key={item.title}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, amount: 0.2 }}
-                  transition={{ delay: index * 0.08 }}
-                  className="relative ml-auto w-full rounded-[30px] border border-white/5 bg-card/85 p-7 shadow-2xl transition-transform duration-300 hover:-translate-y-1 md:w-[calc(100%-90px)] md:p-8"
-                >
-                  <div className="absolute -left-8 top-16 h-5 w-5 rounded-full bg-primary shadow-[0_0_0_8px_rgba(34,197,94,0.12),0_0_0_18px_rgba(34,197,94,0.04)] md:-left-[102px] md:h-6 md:w-6" />
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                      <h4 className="text-3xl font-bold tracking-[-0.04em]">{item.title}</h4>
-                      <p className="mt-3 font-mono text-2xl text-primary">{item.company}</p>
-                    </div>
-                    <div className="space-y-2 font-mono text-sm text-muted-foreground">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4" />
-                        {item.period}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4" />
-                        {item.location}
-                      </div>
-                    </div>
-                  </div>
-
-                  <ul className="mt-8 space-y-4 text-lg leading-relaxed text-muted-foreground">
-                    {item.bullets.map((bullet) => (
-                      <li key={bullet} className="flex gap-3">
-                        <span className="mt-2 text-primary">▹</span>
-                        <span>{bullet}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </motion.article>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section id="models" className="mx-auto max-w-[1280px] px-4 pt-24">
-          <div className="max-w-[920px]">
-            <p className="font-mono text-sm uppercase tracking-[0.22em] text-primary">Selected Work</p>
-            <h2 className="mt-4 text-[clamp(2.3rem,4.5vw,4.6rem)] font-extrabold tracking-[-0.06em]">
-              Models, market studies, and execution frameworks.
-            </h2>
-          </div>
-
-          <div className="mt-10 grid gap-6 lg:grid-cols-3">
-            {PROJECTS.map((project, index) => (
-              <motion.article
-                key={project.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.2 }}
-                transition={{ delay: index * 0.08 }}
-                className="terminal-panel rounded-[30px] p-7 transition-transform duration-300 hover:-translate-y-1"
-              >
-                <h3 className="text-3xl font-bold tracking-[-0.04em]">{project.title}</h3>
-                <p className="mt-3 font-mono text-lg text-primary">{project.label}</p>
-                <p className="mt-6 text-lg leading-relaxed text-muted-foreground">{project.copy}</p>
-                <ul className="mt-6 space-y-3 text-base leading-relaxed text-muted-foreground">
-                  {project.bullets.map((bullet) => (
-                    <li key={bullet} className="flex gap-3">
-                      <span className="mt-1 text-primary">▹</span>
-                      <span>{bullet}</span>
-                    </li>
-                  ))}
-                </ul>
-                <div className="mt-6 flex flex-wrap gap-3">
-                  {project.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="rounded-full border border-primary/15 bg-primary/5 px-4 py-2 font-mono text-xs text-muted-foreground"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              </motion.article>
-            ))}
-          </div>
-
-          <div className="mt-8 grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-            <div className="terminal-panel rounded-[30px] p-7">
-              <div className="flex items-center gap-3">
-                <GraduationCap className="h-6 w-6 text-primary" />
-                <p className="font-mono text-sm uppercase tracking-[0.22em] text-primary">Education</p>
-              </div>
-              <div className="mt-6 space-y-8">
-                {EDUCATION.map((item) => (
-                  <article key={item.degree} className="border-t border-border/30 pt-6 first:border-t-0 first:pt-0">
-                    <h3 className="text-2xl font-bold tracking-[-0.04em]">{item.degree}</h3>
-                    <p className="mt-2 text-lg text-muted-foreground">{item.institution}</p>
-                    <p className="mt-2 font-mono text-sm text-muted-foreground">
-                      {item.location} · {item.date}
-                    </p>
-                    <p className="mt-4 text-base leading-relaxed text-muted-foreground">{item.courses}</p>
-                  </article>
-                ))}
-              </div>
-            </div>
-
-            <div className="terminal-panel rounded-[30px] p-7">
-              <p className="font-mono text-sm uppercase tracking-[0.22em] text-primary">Technical & Market Stack</p>
-              <div className="mt-6 space-y-6">
-                {SPECIALIZED_SKILLS.map((block) => (
-                  <article key={block.title}>
-                    <h3 className="font-mono text-sm uppercase tracking-[0.18em] text-primary">{block.title}</h3>
-                    <p className="mt-3 text-base leading-relaxed text-muted-foreground">{block.text}</p>
-                  </article>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section id="network" className="mx-auto max-w-[1280px] px-4 pt-24">
-          <div className="max-w-[900px]">
-            <p className="font-mono text-sm uppercase tracking-[0.22em] text-primary">Network</p>
-            <h2 className="mt-4 text-[clamp(2.2rem,4.4vw,4.4rem)] font-extrabold tracking-[-0.06em]">
-              Recent public repositories from <span className="text-primary">@DhirenRawal</span>
-            </h2>
-          </div>
-
-          <div className="terminal-panel mt-10 rounded-[30px] p-7">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <p className="max-w-[760px] text-lg leading-relaxed text-muted-foreground">
-                This section pulls directly from GitHub so your public work stays current without manually updating each
-                project card.
-              </p>
-              <a
-                href="https://github.com/DhirenRawal"
-                target="_blank"
-                rel="noreferrer"
-                className="font-mono text-base text-primary transition-colors hover:text-white"
-              >
-                Open GitHub Profile
-              </a>
-            </div>
-
-            <div className="mt-8 grid gap-6 lg:grid-cols-3">
-              {repos.map((repo) => (
-                <article
-                  key={repo.id}
-                  className="rounded-[24px] border border-white/5 bg-background/50 p-6 transition-transform duration-300 hover:-translate-y-1"
-                >
-                  <h3 className="text-2xl font-bold tracking-[-0.04em]">{repo.name}</h3>
-                  <p className="mt-3 font-mono text-sm text-muted-foreground">
-                    {repo.language || "Code"} · {repo.stargazers_count} stars · Updated{" "}
-                    {new Date(repo.updated_at).toLocaleDateString()}
-                  </p>
-                  <p className="mt-5 text-base leading-relaxed text-muted-foreground">
-                    {repo.description || "Public project pulled directly from GitHub."}
-                  </p>
-                  <div className="mt-6 flex flex-wrap gap-3">
-                    <a
-                      href={repo.html_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 font-medium text-primary"
-                    >
-                      Repository
-                    </a>
-                    {repo.homepage ? (
-                      <a
-                        href={repo.homepage}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 font-medium text-primary"
-                      >
-                        Live Demo
-                      </a>
-                    ) : null}
-                  </div>
-                </article>
-              ))}
-            </div>
-
-            <p className="mt-6 text-sm text-muted-foreground">{githubStatus}</p>
-          </div>
-        </section>
-
-        <section id="contact" className="mx-auto max-w-[1280px] px-4 pt-24">
-          <div className="terminal-panel rounded-[34px] px-6 py-10 md:px-10 md:py-12">
-            <div className="max-w-[980px]">
-              <h2 className="text-[clamp(2.5rem,5vw,4.8rem)] font-extrabold tracking-[-0.06em]">
+      <section id="contact" className="relative overflow-hidden py-24">
+        <div className="pointer-events-none absolute right-0 top-0 h-96 w-96 rounded-full bg-primary/5 blur-[100px]" />
+        <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 gap-16 lg:grid-cols-2">
+            <motion.div initial={{ opacity: 0, x: -30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }}>
+              <h2 className="mb-6 font-display text-3xl font-bold md:text-4xl">
                 Initialize <span className="text-primary">Connection</span>
               </h2>
-              <p className="mt-5 max-w-[920px] text-[clamp(1.08rem,1.8vw,1.3rem)] leading-relaxed text-muted-foreground">
-                Currently open to full-time Quantitative Finance and Trading opportunities starting April 2026. Let’s
-                discuss how my analytical skill set can contribute to your firm’s edge.
+              <p className="mb-12 text-lg text-muted-foreground">
+                Currently open to full-time Quantitative Finance and Trading opportunities starting April 2026. Let's discuss how my analytical skills can contribute to your firm's edge.
               </p>
-            </div>
 
-            <div className="mt-10 grid max-w-[860px] gap-5">
-              {[
-                {
-                  icon: Mail,
-                  label: "Email",
-                  value: "dhiren.rawal2001@gmail.com",
-                  href: "mailto:dhiren.rawal2001@gmail.com",
-                },
-                {
-                  icon: Phone,
-                  label: "Phone",
-                  value: "+1 (858) 214-0637",
-                  href: "tel:+18582140637",
-                },
-                {
-                  icon: MapPin,
-                  label: "Location",
-                  value: "New York, NY / San Diego, CA",
-                },
-              ].map((item) => {
-                const Icon = item.icon;
-                const content = (
-                  <div className="flex items-center gap-5 rounded-[24px] border border-white/5 bg-background/45 px-5 py-5 transition-transform duration-300 hover:-translate-y-1">
-                    <div className="flex h-[78px] w-[78px] items-center justify-center rounded-[22px] border border-primary/25 bg-primary/10 text-primary">
-                      <Icon className="h-8 w-8" />
+              <div className="space-y-6">
+                {[
+                  { icon: Mail, label: "Email", content: <a href="mailto:dhiren.rawal2001@gmail.com" className="text-lg font-medium transition-colors hover:text-primary">dhiren.rawal2001@gmail.com</a> },
+                  { icon: Phone, label: "Phone", content: <p className="text-lg font-medium">+1 (858) 214-0637</p> },
+                  { icon: MapPin, label: "Location", content: <p className="text-lg font-medium">New York, NY / San Diego, CA</p> },
+                ].map(({ icon: Icon, label, content }) => (
+                  <div key={label} className="group flex items-center gap-4">
+                    <div className="rounded-xl border border-border bg-secondary p-4 transition-colors group-hover:border-primary">
+                      <Icon className="h-6 w-6 text-primary" />
                     </div>
                     <div>
-                      <p className="font-mono text-sm uppercase tracking-[0.18em] text-muted-foreground/70">{item.label}</p>
-                      <p className="mt-2 text-[clamp(1.15rem,2vw,1.8rem)] font-medium tracking-[-0.03em] text-foreground">
-                        {item.value}
-                      </p>
+                      <p className="font-mono text-sm text-muted-foreground">{label}</p>
+                      {content}
                     </div>
                   </div>
-                );
+                ))}
+              </div>
 
-                return item.href ? (
-                  <a key={item.label} href={item.href} className="block">
-                    {content}
-                  </a>
-                ) : (
-                  <div key={item.label}>{content}</div>
-                );
-              })}
-            </div>
+              <div className="mt-12 flex gap-4">
+                <a
+                  href="https://www.linkedin.com/in/dhirenrawal9"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex h-12 w-12 items-center justify-center rounded-full border border-border transition-colors hover:border-primary"
+                >
+                  <Linkedin className="h-5 w-5" />
+                </a>
+                <a
+                  href="https://github.com/DhirenRawal"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex h-12 w-12 items-center justify-center rounded-full border border-border transition-colors hover:border-primary"
+                >
+                  <Github className="h-5 w-5" />
+                </a>
+              </div>
+            </motion.div>
 
-            <div className="mt-8 flex flex-wrap items-center gap-4">
-              <a
-                href="https://www.linkedin.com/in/dhirenrawal9"
-                target="_blank"
-                rel="noreferrer"
-                className="flex h-16 w-16 items-center justify-center rounded-full border border-primary/25 bg-primary/5 text-primary transition-transform duration-300 hover:-translate-y-1"
-                aria-label="LinkedIn"
-              >
-                <Linkedin className="h-7 w-7" />
-              </a>
-              <a
-                href="https://github.com/DhirenRawal"
-                target="_blank"
-                rel="noreferrer"
-                className="flex h-16 w-16 items-center justify-center rounded-full border border-primary/25 bg-primary/5 text-primary transition-transform duration-300 hover:-translate-y-1"
-                aria-label="GitHub"
-              >
-                <Github className="h-7 w-7" />
-              </a>
+            <motion.div initial={{ opacity: 0, x: 30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} className="glass-panel rounded-2xl p-8">
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(submitContact)} className="space-y-6">
+                  <div className="space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Name / Organization</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Jane Doe" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email Address</FormLabel>
+                          <FormControl>
+                            <Input type="email" placeholder="jane@firm.com" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="message"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Message</FormLabel>
+                          <FormControl>
+                            <Textarea placeholder="We have an opening for a Quant Researcher..." className="min-h-[160px] resize-none" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={sending}
+                    className="flex h-12 w-full items-center justify-center gap-2 rounded-md border border-primary bg-primary px-4 text-md font-medium text-primary-foreground transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {sending ? (
+                      <span className="flex items-center gap-2">
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                        Transmitting...
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <Send className="h-4 w-4" /> Execute Send
+                      </span>
+                    )}
+                  </button>
+                </form>
+              </Form>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
+      <div className="h-10 w-full bg-background" />
+
+      <footer className="mt-auto border-t border-border bg-secondary/30">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-8 md:flex-row">
+          <p className="text-sm text-muted-foreground">© 2026 Dhiren Rawal. All rights reserved.</p>
+          <div className="flex gap-4 font-mono text-xs text-muted-foreground">
+            <span>SYS.STATUS: ONLINE</span>
+            <span className="text-primary">LATENCY: 12ms</span>
+          </div>
+        </div>
+      </footer>
+
+      <div className="fixed bottom-0 z-[100] w-full">
+        <div className="relative z-50 w-full overflow-hidden border-t border-white/6 bg-[#020810]/95 backdrop-blur-xl" style={{ height: "44px" }}>
+          <div className="absolute bottom-0 left-0 top-0 z-20 flex shrink-0 items-center gap-2 border-r border-white/6 bg-[#020810]/95 px-4">
+            <span className={`flex items-center gap-1.5 font-mono text-[9px] font-bold uppercase tracking-widest ${marketOpen ? "text-primary" : "text-amber-400"}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${marketOpen ? "animate-pulse bg-primary" : "bg-amber-400"}`} />
+              {marketOpen ? "LIVE" : "CLOSED"}
+            </span>
+          </div>
+          <div className="pointer-events-none absolute bottom-0 left-[80px] top-0 z-10 w-12 bg-gradient-to-r from-[#020810]/95 to-transparent" />
+          <div className="pointer-events-none absolute bottom-0 right-0 top-0 z-10 w-16 bg-gradient-to-l from-[#020810]/95 to-transparent" />
+          <div className="absolute bottom-0 left-[80px] right-0 top-0 flex items-center overflow-hidden">
+            <div className="animate-ticker flex h-full w-max items-center whitespace-nowrap">
+              {[...heroTickers, ...heroTickers, ...heroTickers].map((ticker, index) => (
+                <TickerItem key={`${ticker.symbol}-${index}`} ticker={ticker} />
+              ))}
             </div>
           </div>
-        </section>
-      </main>
-
-      <div className="fixed bottom-3 left-1/2 z-40 w-[calc(100%-18px)] max-w-[1280px] -translate-x-1/2 overflow-hidden rounded-[24px] border border-white/5 bg-background/90 shadow-2xl backdrop-blur-xl">
-        <div className="flex overflow-x-auto scrollbar-hide">
-          <div className="flex items-center gap-3 border-r border-border/30 px-5 py-4 font-mono text-sm text-primary">
-            <Wifi className="h-4 w-4" />
-            LIVE
-          </div>
-          {tickers.map((ticker) => (
-            <MarketCard key={ticker.symbol} ticker={ticker} />
-          ))}
         </div>
       </div>
     </div>
