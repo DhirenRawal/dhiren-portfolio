@@ -1,28 +1,57 @@
-import { useState, useEffect } from "react";
-import { Link, useLocation } from "wouter";
+import { useEffect, useState } from "react";
+import { Link } from "wouter";
 import { cn } from "@/lib/utils";
 import { Menu, X, Terminal } from "lucide-react";
 
 export function Navigation() {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [location] = useLocation();
+  const [activeSection, setActiveSection] = useState("terminal");
 
   useEffect(() => {
+    const navIds = ["terminal", "about", "trajectory", "models", "network", "contact"];
+
     const handleScroll = () => {
       setScrolled(window.scrollY > 50);
+
+      const marker = window.scrollY + 180;
+      let current = navIds[0];
+
+      navIds.forEach((id) => {
+        const element = document.getElementById(id);
+
+        if (element && element.offsetTop <= marker) {
+          current = id;
+        }
+      });
+
+      setActiveSection(current);
     };
+
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace("#", "");
+      if (hash) {
+        setActiveSection(hash);
+      }
+    };
+
+    handleScroll();
     window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
+    window.addEventListener("hashchange", handleHashChange);
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("hashchange", handleHashChange);
+    };
   }, []);
 
   const navLinks = [
-    { name: "Terminal", href: "/#terminal" },
-    { name: "Trajectory", href: "/#trajectory" },
-    { name: "Models", href: "/#models" },
-    { name: "Pricer", href: "/#pricer" },
-    { name: "Network", href: "/#network" },
-    { name: "Contact", href: "/#contact" },
+    { name: "Terminal", href: "/#terminal", id: "terminal" },
+    { name: "About", href: "/#about", id: "about" },
+    { name: "Trajectory", href: "/#trajectory", id: "trajectory" },
+    { name: "Models", href: "/#models", id: "models" },
+    { name: "Network", href: "/#network", id: "network" },
+    { name: "Contact", href: "/#contact", id: "contact" },
   ];
 
   return (
@@ -59,15 +88,14 @@ export function Navigation() {
                 key={link.href}
                 href={link.href}
                 className={cn(
-                  "text-sm font-mono tracking-tight cursor-pointer transition-colors relative py-1 text-muted-foreground hover:text-foreground"
+                  "relative py-1 text-sm font-mono tracking-tight transition-colors",
+                  activeSection === link.id ? "text-foreground" : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                <div>
-                  {link.name}
-                  {location === "/" && link.href === "/#terminal" && (
-                    <span className="absolute bottom-0 left-0 w-full h-0.5 bg-primary shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
-                  )}
-                </div>
+                {link.name}
+                {activeSection === link.id && (
+                  <span className="absolute bottom-0 left-0 h-0.5 w-full bg-primary shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
+                )}
               </a>
             ))}
             <a
@@ -98,16 +126,10 @@ export function Navigation() {
               <a
                 key={link.href}
                 href={link.href}
-                className="text-lg font-medium py-2 border-b border-border/50 cursor-pointer"
+                className="border-b border-border/50 py-2 text-lg font-medium"
                 onClick={() => setIsOpen(false)}
               >
-                <div
-                  className="text-lg font-medium py-2 border-b border-border/50 cursor-pointer"
-                >
-                  <span className="text-foreground">
-                    {link.name}
-                  </span>
-                </div>
+                <span className={cn(activeSection === link.id ? "text-primary" : "text-foreground")}>{link.name}</span>
               </a>
             ))}
             <a
