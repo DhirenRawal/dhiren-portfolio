@@ -6,35 +6,35 @@
 
 :root {
   /* Dark FinTech Theme */
-  --background: 222 47% 11%;
+  --background: 224 46% 6%;
   --foreground: 210 40% 98%;
 
-  --card: 222 47% 13%;
+  --card: 224 38% 9%;
   --card-foreground: 210 40% 98%;
 
-  --popover: 222 47% 11%;
+  --popover: 224 46% 6%;
   --popover-foreground: 210 40% 98%;
 
   /* Neon Green Accent - Profit/Growth */
-  --primary: 142 71% 45%;
+  --primary: 149 100% 53%;
   --primary-foreground: 144 100% 11%;
 
   /* Cyan Accent - Tech/Future */
   --secondary: 199 89% 48%;
   --secondary-foreground: 210 40% 98%;
 
-  --muted: 217 33% 17%;
-  --muted-foreground: 215 20% 65%;
+  --muted: 220 28% 12%;
+  --muted-foreground: 220 16% 66%;
 
-  --accent: 217 33% 17%;
+  --accent: 220 28% 12%;
   --accent-foreground: 210 40% 98%;
 
   --destructive: 0 62% 30%;
   --destructive-foreground: 210 40% 98%;
 
-  --border: 217 33% 20%;
-  --input: 217 33% 17%;
-  --ring: 142 71% 45%;
+  --border: 222 23% 18%;
+  --input: 220 28% 12%;
+  --ring: 149 100% 53%;
 
   --radius: 0.5rem;
 
@@ -50,10 +50,12 @@
   body {
     @apply bg-background text-foreground font-sans antialiased selection:bg-primary/20 selection:text-primary;
     background-image: 
-      linear-gradient(to bottom, transparent, hsl(var(--background))),
-      linear-gradient(to right, hsl(var(--border)/0.1) 1px, transparent 1px),
-      linear-gradient(to bottom, hsl(var(--border)/0.1) 1px, transparent 1px);
-    background-size: 100% 100%, 40px 40px, 40px 40px;
+      radial-gradient(circle at 25% 18%, hsl(var(--primary) / 0.13), transparent 24%),
+      radial-gradient(circle at 80% 10%, hsl(var(--secondary) / 0.12), transparent 23%),
+      linear-gradient(to right, hsl(var(--border)/0.09) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--border)/0.09) 1px, transparent 1px),
+      linear-gradient(180deg, hsl(var(--background)), hsl(224 44% 5%));
+    background-size: auto, auto, 72px 72px, 72px 72px, 100% 100%;
     background-attachment: fixed;
   }
 
@@ -78,6 +80,27 @@
 
   .neon-glow {
     box-shadow: 0 0 10px -2px hsl(var(--primary) / 0.5);
+  }
+
+  .terminal-panel {
+    @apply border border-white/5 bg-card/85 shadow-2xl backdrop-blur-xl;
+  }
+
+  .terminal-grid {
+    background-image:
+      linear-gradient(to right, hsl(var(--border)/0.16) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--border)/0.16) 1px, transparent 1px);
+    background-size: 80px 80px;
+    mask-image: radial-gradient(circle at center, black 36%, transparent 100%);
+  }
+
+  .terminal-orbit::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    border: 1px solid hsl(var(--primary) / 0.18);
+    box-shadow: 0 0 60px hsl(var(--primary) / 0.08);
   }
 
   .scrollbar-hide::-webkit-scrollbar {
