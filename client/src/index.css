@@ -154,5 +154,17 @@
 }
 
 .animate-ticker {
-  animation: ticker 30s linear infinite;
+  animation: ticker 34s linear infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .animate-ticker {
+    animation: none;
+    transform: none;
+  }
 }

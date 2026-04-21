@@ -77,6 +77,11 @@ export function useMarketData() {
       if (!res.ok) throw new Error("Failed to fetch market data");
       return api.market.list.responses[200].parse(await res.json());
     },
+    staleTime: 45_000,
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: false,
+    retry: 1,
   });
 }
 

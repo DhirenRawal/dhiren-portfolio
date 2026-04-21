@@ -28,6 +28,7 @@ import {
   Wifi,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useMarketData } from "@/hooks/use-portfolio";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -50,6 +51,20 @@ type Ticker = {
   decimals: number;
   change: number;
   pct: number;
+};
+
+type MarketQuote = {
+  symbol: string;
+  name: string;
+  price: number | string;
+  change: number | string;
+  changePercent: number | string;
+  category: string;
+  decimals?: number;
+  source?: string;
+  marketTime?: number | null;
+  exchangeTimezoneName?: string | null;
+  timezone?: string | null;
 };
 
 type Candle = {
@@ -185,20 +200,38 @@ const CORE_EXPERTISE = [
   "Fixed Income",
 ];
 
-const BASE_TICKERS: Ticker[] = [
-  { symbol: "SPX", name: "S&P 500", price: 5123.45, decimals: 2, change: 14.32, pct: 1.2 },
-  { symbol: "NDX", name: "Nasdaq 100", price: 17842.3, decimals: 1, change: 182.5, pct: 1.03 },
-  { symbol: "RTY", name: "Russell 2000", price: 2048.6, decimals: 2, change: -12.4, pct: -0.6 },
-  { symbol: "VIX", name: "Volatility Idx", price: 14.22, decimals: 2, change: -0.48, pct: -3.26 },
-  { symbol: "NVDA", name: "NVIDIA", price: 875.28, decimals: 2, change: 18.04, pct: 2.1 },
-  { symbol: "AAPL", name: "Apple", price: 178.25, decimals: 2, change: -0.89, pct: -0.5 },
-  { symbol: "TSLA", name: "Tesla", price: 202.1, decimals: 2, change: 6.65, pct: 3.4 },
-  { symbol: "MSFT", name: "Microsoft", price: 420.55, decimals: 2, change: 6.23, pct: 1.5 },
-  { symbol: "GC=F", name: "Gold Futures", price: 2045.6, decimals: 2, change: 16.2, pct: 0.8 },
-  { symbol: "BTC-USD", name: "Bitcoin", price: 64230, decimals: 0, change: 2592, pct: 4.2 },
-  { symbol: "^TNX", name: "10Y Treasury", price: 4.21, decimals: 2, change: 0.05, pct: 1.2 },
-  { symbol: "CL=F", name: "Crude Oil", price: 78.4, decimals: 2, change: -0.87, pct: -1.1 },
-];
+const MARKET_ORDER = ["SPX", "NDX", "RUT", "VIX", "NVDA", "AAPL", "TSLA", "MSFT", "GC=F", "BTC-USD", "^TNX", "CL=F"] as const;
+const TICKER_DECIMALS: Record<string, number> = {
+  SPX: 2,
+  NDX: 2,
+  RUT: 2,
+  VIX: 2,
+  NVDA: 2,
+  AAPL: 2,
+  TSLA: 2,
+  MSFT: 2,
+  "GC=F": 2,
+  "BTC-USD": 0,
+  "^TNX": 3,
+  "CL=F": 2,
+};
+
+const EASTERN_TIME_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+});
+
+const EASTERN_PARTS_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
+  weekday: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+});
 
 const CHART_SYMBOLS = ["SPX", "NDX", "RTY", "VIX"] as const;
 
@@ -223,6 +256,52 @@ const contactSchema = z.object({
 });
 
 type ContactFormValues = z.infer<typeof contactSchema>;
+
+function toNumber(value: number | string | null | undefined) {
+  if (typeof value === "number") return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
+function getMarketClock(now = new Date()) {
+  const parts = Object.fromEntries(
+    EASTERN_PARTS_FORMATTER.formatToParts(now)
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+  const weekday = parts.weekday ?? "Mon";
+  const hour = Number(parts.hour ?? "0");
+  const minute = Number(parts.minute ?? "0");
+  const currentMinutes = hour * 60 + minute;
+  const isWeekday = weekday !== "Sat" && weekday !== "Sun";
+  const isOpen = isWeekday && currentMinutes >= 9 * 60 + 30 && currentMinutes < 16 * 60;
+
+  return {
+    time: EASTERN_TIME_FORMATTER.format(now),
+    isOpen,
+    zoneLabel: "ET",
+  };
+}
+
+function normalizeTickers(marketData: MarketQuote[] | undefined): Ticker[] {
+  if (!marketData?.length) return [];
+
+  const order = new Map<string, number>(MARKET_ORDER.map((symbol, index) => [symbol, index]));
+
+  return [...marketData]
+    .sort((left, right) => (order.get(left.symbol) ?? 999) - (order.get(right.symbol) ?? 999))
+    .map((quote) => ({
+      symbol: quote.symbol,
+      name: quote.name,
+      price: toNumber(quote.price),
+      decimals: quote.decimals ?? TICKER_DECIMALS[quote.symbol] ?? 2,
+      change: toNumber(quote.change),
+      pct: toNumber(quote.changePercent),
+    }));
+}
 
 function PulsePathIcon() {
   return (
@@ -342,43 +421,99 @@ function seedCandles(base: number, count: number) {
 function CursorTrail() {
   const innerRef = useRef<HTMLDivElement | null>(null);
   const outerRef = useRef<HTMLDivElement | null>(null);
-  const pointsRef = useRef<{ x: number; y: number; id: number }[]>([]);
-  const countRef = useRef(0);
-  const [points, setPoints] = useState<{ x: number; y: number; id: number }[]>([]);
+  const trailRefs = useRef<Array<HTMLDivElement | null>>([]);
   const [enabled, setEnabled] = useState(false);
 
   useEffect(() => {
-    const media = window.matchMedia("(pointer: fine)");
-    setEnabled(media.matches);
+    const finePointer = window.matchMedia("(pointer: fine)");
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const syncEnabledState = () => setEnabled(finePointer.matches && !reducedMotion.matches);
 
-    const handleChange = () => setEnabled(media.matches);
-    media.addEventListener("change", handleChange);
+    syncEnabledState();
+    finePointer.addEventListener("change", syncEnabledState);
+    reducedMotion.addEventListener("change", syncEnabledState);
 
-    return () => media.removeEventListener("change", handleChange);
+    return () => {
+      finePointer.removeEventListener("change", syncEnabledState);
+      reducedMotion.removeEventListener("change", syncEnabledState);
+    };
   }, []);
 
   useEffect(() => {
     if (!enabled) return;
 
-    const handleMove = (event: MouseEvent) => {
-      const { clientX, clientY } = event;
+    const target = {
+      x: window.innerWidth / 2,
+      y: window.innerHeight / 2,
+    };
+    const inner = { ...target };
+    const outer = { ...target };
+    const trail = Array.from({ length: 8 }, () => ({ ...target }));
+    let frameId = 0;
+
+    const setVisible = (visible: boolean) => {
+      if (innerRef.current) innerRef.current.style.opacity = visible ? "1" : "0";
+      if (outerRef.current) outerRef.current.style.opacity = visible ? "1" : "0";
+
+      trailRefs.current.forEach((node, index) => {
+        if (!node) return;
+        node.style.opacity = visible ? `${Math.max(0.04, 0.22 - index * 0.02)}` : "0";
+      });
+    };
+
+    const animate = () => {
+      inner.x += (target.x - inner.x) * 0.34;
+      inner.y += (target.y - inner.y) * 0.34;
+      outer.x += (target.x - outer.x) * 0.16;
+      outer.y += (target.y - outer.y) * 0.16;
 
       if (innerRef.current) {
-        innerRef.current.style.transform = `translate(${clientX - 4}px, ${clientY - 4}px)`;
+        innerRef.current.style.transform = `translate3d(${inner.x - 5}px, ${inner.y - 5}px, 0)`;
       }
 
       if (outerRef.current) {
-        outerRef.current.style.transform = `translate(${clientX - 16}px, ${clientY - 16}px)`;
+        outerRef.current.style.transform = `translate3d(${outer.x - 15}px, ${outer.y - 15}px, 0)`;
       }
 
-      const id = countRef.current;
-      countRef.current += 1;
-      pointsRef.current = [...pointsRef.current.slice(-14), { x: clientX, y: clientY, id }];
-      setPoints([...pointsRef.current]);
+      trail[0].x += (inner.x - trail[0].x) * 0.35;
+      trail[0].y += (inner.y - trail[0].y) * 0.35;
+
+      for (let index = 1; index < trail.length; index += 1) {
+        trail[index].x += (trail[index - 1].x - trail[index].x) * 0.35;
+        trail[index].y += (trail[index - 1].y - trail[index].y) * 0.35;
+      }
+
+      trail.forEach((point, index) => {
+        const node = trailRefs.current[index];
+        if (!node) return;
+
+        const size = 8 - index * 0.75;
+        node.style.transform = `translate3d(${point.x - size / 2}px, ${point.y - size / 2}px, 0) scale(${1 - index * 0.06})`;
+      });
+
+      frameId = window.requestAnimationFrame(animate);
     };
 
-    window.addEventListener("mousemove", handleMove);
-    return () => window.removeEventListener("mousemove", handleMove);
+    const handleMove = (event: MouseEvent) => {
+      target.x = event.clientX;
+      target.y = event.clientY;
+      setVisible(true);
+    };
+
+    const handleHide = () => setVisible(false);
+
+    setVisible(false);
+    frameId = window.requestAnimationFrame(animate);
+    window.addEventListener("mousemove", handleMove, { passive: true });
+    window.addEventListener("blur", handleHide);
+    document.addEventListener("mouseleave", handleHide);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("blur", handleHide);
+      document.removeEventListener("mouseleave", handleHide);
+    };
   }, [enabled]);
 
   if (!enabled) return null;
@@ -387,23 +522,27 @@ function CursorTrail() {
     <>
       <div
         ref={innerRef}
-        className="pointer-events-none fixed left-0 top-0 z-[9999] h-2 w-2 rounded-full bg-primary shadow-[0_0_8px_2px_rgba(0,255,136,0.8)]"
-        style={{ transition: "transform 0.04s linear" }}
+        className="pointer-events-none fixed left-0 top-0 z-[9999] h-2.5 w-2.5 rounded-full bg-primary/95 opacity-0 shadow-[0_0_14px_3px_rgba(0,255,136,0.8)] transition-opacity duration-200"
+        style={{ willChange: "transform, opacity" }}
       />
       <div
         ref={outerRef}
-        className="pointer-events-none fixed left-0 top-0 z-[9999] h-8 w-8 rounded-full border border-primary/50"
-        style={{ transition: "transform 0.12s ease-out" }}
+        className="pointer-events-none fixed left-0 top-0 z-[9998] h-[30px] w-[30px] rounded-full border border-primary/35 bg-primary/5 opacity-0 transition-opacity duration-200"
+        style={{ willChange: "transform, opacity" }}
       />
-      {points.map((point, index) => (
+      {Array.from({ length: 8 }).map((_, index) => (
         <div
-          key={point.id}
+          key={index}
+          ref={(node) => {
+            trailRefs.current[index] = node;
+          }}
           className="pointer-events-none fixed left-0 top-0 z-[9998] rounded-full bg-primary"
           style={{
-            width: `${3 * (index / Math.max(points.length, 1))}px`,
-            height: `${3 * (index / Math.max(points.length, 1))}px`,
-            opacity: (index / Math.max(points.length, 1)) * 0.35,
-            transform: `translate(${point.x - 1.5}px, ${point.y - 1.5}px)`,
+            width: `${8 - index * 0.75}px`,
+            height: `${8 - index * 0.75}px`,
+            opacity: 0,
+            filter: "blur(0.2px)",
+            willChange: "transform, opacity",
           }}
         />
       ))}
@@ -859,23 +998,12 @@ export default function Home() {
   const [roleIndex, setRoleIndex] = useState(0);
   const [typedRole, setTypedRole] = useState("");
   const [typingForward, setTypingForward] = useState(true);
-  const [heroTickers, setHeroTickers] = useState(BASE_TICKERS);
-  const [activeChart, setActiveChart] = useState<(typeof CHART_SYMBOLS)[number]>("SPX");
-  const [seriesMap, setSeriesMap] = useState<Record<(typeof CHART_SYMBOLS)[number], Candle[]>>(() => {
-    const seeded = {} as Record<(typeof CHART_SYMBOLS)[number], Candle[]>;
-
-    CHART_SYMBOLS.forEach((symbol) => {
-      seeded[symbol] = seedCandles(CHART_BASES[symbol], CHART_LENGTH);
-    });
-
-    return seeded;
-  });
-  const [activeCandleIndex, setActiveCandleIndex] = useState<number | null>(null);
+  const [marketClock, setMarketClock] = useState(() => getMarketClock());
   const [sending, setSending] = useState(false);
   const mouseX = useRef(0.5);
   const mouseY = useRef(0.5);
-  const chartInterval = useRef<number | null>(null);
   const { toast } = useToast();
+  const { data: marketData, isLoading: marketLoading, isError: marketError } = useMarketData();
 
   const form = useForm<ContactFormValues>({
     resolver: zodResolver(contactSchema),
@@ -907,65 +1035,17 @@ export default function Home() {
   }, [roleIndex, typedRole, typingForward]);
 
   useEffect(() => {
-    const interval = window.setInterval(() => {
-      setHeroTickers((current) =>
-        current.map((ticker) => {
-          const drift = (Math.random() - 0.48) * Math.max(ticker.price * 0.002, ticker.symbol === "BTC-USD" ? 140 : 1.2);
-          const pctDrift = (Math.random() - 0.48) * 0.18;
-
-          return {
-            ...ticker,
-            price: Math.max(0.01, ticker.price + drift),
-            pct: ticker.pct + pctDrift,
-            change: ticker.change + drift,
-          };
-        })
-      );
-    }, 1400);
-
+    const interval = window.setInterval(() => setMarketClock(getMarketClock()), 1000);
     return () => window.clearInterval(interval);
   }, []);
-
-  const updateChart = useCallback(() => {
-    setSeriesMap((current) => {
-      const next = { ...current };
-
-      CHART_SYMBOLS.forEach((symbol) => {
-        const series = current[symbol];
-        const lastClose = series[series.length - 1]?.close ?? CHART_BASES[symbol];
-        next[symbol] = [...series.slice(-59), generateCandle(lastClose)];
-      });
-
-      return next;
-    });
-
-    setActiveCandleIndex(CHART_LENGTH - 1);
-    window.setTimeout(() => setActiveCandleIndex(null), 300);
-  }, []);
-
-  useEffect(() => {
-    chartInterval.current = window.setInterval(updateChart, 1200);
-    return () => {
-      if (chartInterval.current) window.clearInterval(chartInterval.current);
-    };
-  }, [updateChart]);
 
   const onHeroMouseMove = useCallback((event: ReactMouseEvent<HTMLElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     mouseX.current = (event.clientX - rect.left) / rect.width;
     mouseY.current = (event.clientY - rect.top) / rect.height;
   }, []);
-
-  const candles = seriesMap[activeChart] ?? [];
-  const lastCandle = candles[candles.length - 1];
-  const previousCandle = candles[candles.length - 2];
-  const chartDelta = lastCandle && previousCandle ? lastCandle.close - previousCandle.close : 0;
-  const chartPct = previousCandle ? (chartDelta / previousCandle.close) * 100 : 0;
-  const chartHigh = candles.length ? Math.max(...candles.map((candle) => candle.high)) : 0;
-  const chartLow = candles.length ? Math.min(...candles.map((candle) => candle.low)) : 0;
-  const ma20 = candles.length
-    ? candles.slice(-20).reduce((sum, candle) => sum + candle.close, 0) / Math.min(20, candles.length)
-    : 0;
+  const heroTickers = useMemo(() => normalizeTickers((marketData as MarketQuote[] | undefined) ?? []), [marketData]);
+  const primaryIndexQuote = heroTickers.find((ticker) => ticker.symbol === "SPX") ?? heroTickers[0] ?? null;
 
   const [spotInput, setSpotInput] = useState("450");
   const [strikeInput, setStrikeInput] = useState("460");
@@ -991,13 +1071,7 @@ export default function Home() {
         : "ATM"
     : null;
 
-  const marketOpen = useMemo(() => {
-    const now = new Date();
-    const hours = now.getHours();
-    const minutes = now.getMinutes();
-
-    return (hours > 9 || (hours === 9 && minutes >= 30)) && hours < 16;
-  }, [heroTickers]);
+  const marketOpen = marketClock.isOpen;
 
   const submitContact = (values: ContactFormValues) => {
     void values;
@@ -1083,16 +1157,41 @@ export default function Home() {
         />
 
         <div className="relative z-10 flex w-full max-w-2xl flex-col items-center px-6 text-center">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.85 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.15, type: "spring" }}
-            className="mb-8 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 font-mono text-xs text-primary shadow-[0_0_20px_rgba(0,255,136,0.12)]"
-          >
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
-            Open to roles · April 2026
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
-          </motion.div>
+          <div className="mb-8 flex flex-col items-center gap-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.85 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.15, type: "spring" }}
+              className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 font-mono text-xs text-primary shadow-[0_0_20px_rgba(0,255,136,0.12)]"
+            >
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
+              Open to roles · April 2026
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2, duration: 0.45 }}
+              className="rounded-[28px] border border-white/10 bg-[#06111d]/85 px-5 py-3 shadow-[0_18px_45px_rgba(0,0,0,0.35)] backdrop-blur-xl"
+            >
+              <div className={`flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.28em] ${marketOpen ? "text-primary" : "text-amber-300"}`}>
+                <span className={`h-2.5 w-2.5 rounded-full ${marketOpen ? "animate-pulse bg-primary" : "bg-amber-300"}`} />
+                {marketOpen ? "MKT OPEN" : "MKT CLOSED"} · {marketClock.zoneLabel}
+              </div>
+              <div className="mt-2 flex items-end justify-center gap-3">
+                <span className="font-mono text-[2rem] font-bold leading-none text-white sm:text-[2.3rem]">{marketClock.time}</span>
+                <span className="pb-1 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground/60">Yahoo Finance</span>
+              </div>
+              <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/55">
+                {primaryIndexQuote
+                  ? `${primaryIndexQuote.symbol} ${primaryIndexQuote.price.toFixed(primaryIndexQuote.decimals)} ${primaryIndexQuote.pct >= 0 ? "+" : ""}${primaryIndexQuote.pct.toFixed(2)}%`
+                  : marketError
+                    ? "Live quotes temporarily unavailable"
+                    : "Loading live quotes..."}
+              </div>
+            </motion.div>
+          </div>
 
           <motion.div
             initial={{ opacity: 0, scale: 0.8, y: 20 }}
@@ -1221,80 +1320,6 @@ export default function Home() {
           <span className="font-mono text-[9px] uppercase tracking-widest">Scroll</span>
           <ChevronDown className="h-4 w-4" />
         </motion.div>
-      </section>
-
-      <section className="w-full border-y border-border/50 bg-black/40 backdrop-blur-sm">
-        <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-1">
-              <div className="mr-3 flex items-center gap-1.5">
-                <Wifi className="h-3 w-3 animate-pulse text-primary" />
-                <span className="font-mono text-[10px] uppercase tracking-widest text-primary">Live Feed</span>
-              </div>
-              {CHART_SYMBOLS.map((symbol) => (
-                <button
-                  key={symbol}
-                  type="button"
-                  onClick={() => setActiveChart(symbol)}
-                  className={`rounded px-3 py-1 font-mono text-xs transition-all duration-200 ${
-                    activeChart === symbol
-                      ? "border border-primary/40 bg-primary/20 text-primary"
-                      : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
-                  }`}
-                >
-                  {symbol}
-                </button>
-              ))}
-            </div>
-
-            {lastCandle ? (
-              <div className="flex items-center gap-5 font-mono text-xs">
-                <motion.span key={lastCandle.close} initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} className="text-base font-bold text-foreground">
-                  {lastCandle.close.toFixed(2)}
-                </motion.span>
-                <span className={`flex items-center gap-1 ${chartDelta >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                  {chartDelta >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-                  {chartDelta >= 0 ? "+" : ""}
-                  {chartDelta.toFixed(2)} ({chartPct >= 0 ? "+" : ""}
-                  {chartPct.toFixed(2)}%)
-                </span>
-                <span className="hidden text-muted-foreground sm:inline">
-                  H: <span className="text-foreground">{chartHigh.toFixed(2)}</span>
-                </span>
-                <span className="hidden text-muted-foreground sm:inline">
-                  L: <span className="text-foreground">{chartLow.toFixed(2)}</span>
-                </span>
-                <span className="hidden text-muted-foreground md:inline">
-                  MA20: <span className="text-yellow-400">{ma20.toFixed(2)}</span>
-                </span>
-                <span className="text-muted-foreground/50">{lastCandle.time}</span>
-              </div>
-            ) : null}
-          </div>
-
-          <div className="relative w-full overflow-hidden rounded-xl border border-border/30 bg-background/30 p-2">
-            {renderCandles(candles, activeCandleIndex)}
-            <div className="pointer-events-none absolute left-2 top-2 flex h-[160px] flex-col justify-between">
-              {[chartHigh, (chartHigh + chartLow) / 2, chartLow].map((value, index) => (
-                <span key={index} className="font-mono text-[9px] text-muted-foreground/50">
-                  {Number.isFinite(value) ? value.toFixed(1) : "0.0"}
-                </span>
-              ))}
-            </div>
-
-            <div className="pointer-events-none absolute bottom-10 right-3 flex items-center gap-3 font-mono text-[9px]">
-              <span className="flex items-center gap-1">
-                <span className="inline-block h-[1.5px] w-4 bg-yellow-400/60" /> MA(20)
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="inline-block h-2.5 w-2.5 border border-emerald-500 bg-emerald-500/40" /> Bull
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="inline-block h-2.5 w-2.5 border border-red-500" /> Bear
-              </span>
-            </div>
-          </div>
-        </div>
       </section>
 
       <section id="experience" className="relative border-y border-border bg-secondary/20 py-24">
@@ -1730,7 +1755,7 @@ export default function Home() {
         </div>
       </section>
 
-      <div className="h-10 w-full bg-background" />
+      <div className="h-14 w-full bg-background" />
 
       <footer className="mt-auto border-t border-border bg-secondary/30">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-8 md:flex-row">
@@ -1743,21 +1768,28 @@ export default function Home() {
       </footer>
 
       <div className="fixed bottom-0 z-[100] w-full">
-        <div className="relative z-50 w-full overflow-hidden border-t border-white/6 bg-[#020810]/95 backdrop-blur-xl" style={{ height: "44px" }}>
-          <div className="absolute bottom-0 left-0 top-0 z-20 flex shrink-0 items-center gap-2 border-r border-white/6 bg-[#020810]/95 px-4">
-            <span className={`flex items-center gap-1.5 font-mono text-[9px] font-bold uppercase tracking-widest ${marketOpen ? "text-primary" : "text-amber-400"}`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${marketOpen ? "animate-pulse bg-primary" : "bg-amber-400"}`} />
-              {marketOpen ? "LIVE" : "CLOSED"}
+        <div className="relative z-50 w-full overflow-hidden border-t border-white/6 bg-[#020810]/95 backdrop-blur-xl" style={{ height: "56px" }}>
+          <div className="absolute bottom-0 left-0 top-0 z-20 flex min-w-[170px] shrink-0 flex-col justify-center border-r border-white/6 bg-[#020810]/95 px-4">
+            <span className={`flex items-center gap-1.5 font-mono text-[9px] font-bold uppercase tracking-widest ${marketOpen ? "text-primary" : "text-amber-300"}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${marketOpen ? "animate-pulse bg-primary" : "bg-amber-300"}`} />
+              {marketOpen ? "MKT OPEN" : "MKT CLOSED"} · {marketClock.zoneLabel}
             </span>
+            <span className="mt-1 font-mono text-[13px] font-semibold text-white/90 tabular-nums">{marketClock.time}</span>
           </div>
-          <div className="pointer-events-none absolute bottom-0 left-[80px] top-0 z-10 w-12 bg-gradient-to-r from-[#020810]/95 to-transparent" />
+          <div className="pointer-events-none absolute bottom-0 left-[170px] top-0 z-10 w-12 bg-gradient-to-r from-[#020810]/95 to-transparent" />
           <div className="pointer-events-none absolute bottom-0 right-0 top-0 z-10 w-16 bg-gradient-to-l from-[#020810]/95 to-transparent" />
-          <div className="absolute bottom-0 left-[80px] right-0 top-0 flex items-center overflow-hidden">
-            <div className="animate-ticker flex h-full w-max items-center whitespace-nowrap">
-              {[...heroTickers, ...heroTickers, ...heroTickers].map((ticker, index) => (
-                <TickerItem key={`${ticker.symbol}-${index}`} ticker={ticker} />
-              ))}
-            </div>
+          <div className="absolute bottom-0 left-[170px] right-0 top-0 flex items-center overflow-hidden">
+            {heroTickers.length ? (
+              <div className="animate-ticker hover:[animation-play-state:paused] flex h-full w-max items-center whitespace-nowrap">
+                {[...heroTickers, ...heroTickers, ...heroTickers].map((ticker, index) => (
+                  <TickerItem key={`${ticker.symbol}-${index}`} ticker={ticker} />
+                ))}
+              </div>
+            ) : (
+              <div className="flex h-full items-center px-5 font-mono text-[11px] text-muted-foreground">
+                {marketError ? "Live quotes unavailable right now." : marketLoading ? "Loading live quotes from Yahoo Finance..." : "Waiting for market data..."}
+              </div>
+            )}
           </div>
         </div>
       </div>
