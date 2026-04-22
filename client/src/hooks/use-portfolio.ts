@@ -9,6 +9,10 @@ function buildApiUrl(path: string) {
   return `${API_BASE_URL}${path}`;
 }
 
+function buildSameOriginApiUrl(path: string) {
+  return path;
+}
+
 function readCachedMarketData() {
   if (typeof window === "undefined") return undefined;
 
@@ -98,7 +102,7 @@ export function useMarketData() {
   return useQuery({
     queryKey: [api.market.list.path],
     queryFn: async () => {
-      const res = await fetch(buildApiUrl(api.market.list.path));
+      const res = await fetch(buildSameOriginApiUrl(api.market.list.path));
       if (!res.ok) throw new Error("Failed to fetch market data");
       const data = api.market.list.responses[200].parse(await res.json());
       writeCachedMarketData(data);
@@ -121,7 +125,7 @@ export function useContact() {
     mutationFn: async (data: InsertContactMessage) => {
       const validated = api.contact.submit.input.parse(data);
 
-      const url = buildApiUrl(api.contact.submit.path);
+      const url = buildSameOriginApiUrl(api.contact.submit.path);
       console.log("Submitting contact form to:", url);
 
       const res = await fetch(url, {
