@@ -28,6 +28,16 @@ type YahooSparkResult = {
   }>;
 };
 
+type YahooQuoteResult = {
+  symbol?: string;
+  regularMarketPrice?: number;
+  regularMarketChange?: number;
+  regularMarketChangePercent?: number;
+  regularMarketTime?: number;
+  exchangeTimezoneName?: string;
+  fullExchangeName?: string;
+};
+
 type MarketSnapshot = {
   symbol: string;
   rawSymbol: string;
@@ -57,6 +67,7 @@ export const config = {
 };
 
 const YAHOO_SPARK_URL = "https://query1.finance.yahoo.com/v7/finance/spark";
+const YAHOO_QUOTE_URL = "https://query1.finance.yahoo.com/v7/finance/quote";
 const CACHE_TTL_MS = 45_000;
 
 const MARKET_QUOTE_CONFIG: MarketQuoteConfig[] = [
@@ -131,34 +142,101 @@ async function fetchMarketSnapshot() {
     return cachedSnapshot;
   }
 
-  const symbols = MARKET_QUOTE_CONFIG.map((item) => item.sourceSymbol).join(",");
-  const url = new URL(YAHOO_SPARK_URL);
-  url.searchParams.set("symbols", symbols);
-  url.searchParams.set("range", "1d");
-  url.searchParams.set("interval", "1d");
-  url.searchParams.set("indicators", "close");
+  let snapshot: MarketSnapshot[] = [];
 
-  const response = await fetch(url, {
-    headers: {
-      Accept: "application/json",
-      "User-Agent": "Mozilla/5.0 (compatible; DhirenPortfolio/1.0; +https://github.com/DhirenRawal/dhiren-portfolio)",
-    },
-  });
+  try {
+    const symbols = MARKET_QUOTE_CONFIG.map((item) => item.sourceSymbol).join(",");
+    const url = new URL(YAHOO_SPARK_URL);
+    url.searchParams.set("symbols", symbols);
+    url.searchParams.set("range", "1d");
+    url.searchParams.set("interval", "1d");
+    url.searchParams.set("indicators", "close");
 
-  if (!response.ok) {
-    throw new Error(`Yahoo Finance spark request failed with ${response.status}`);
+    const response = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "Mozilla/5.0 (compatible; DhirenPortfolio/1.0; +https://github.com/DhirenRawal/dhiren-portfolio)",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Yahoo Finance spark request failed with ${response.status}`);
+    }
+
+    const payload = (await response.json()) as {
+      spark?: {
+        result?: YahooSparkResult[];
+      };
+    };
+
+    const resultMap = new Map((payload.spark?.result ?? []).map((item) => [item.symbol, item]));
+    snapshot = MARKET_QUOTE_CONFIG.map((item) => mapSparkResult(item, resultMap.get(item.sourceSymbol))).filter(
+      (quote): quote is MarketSnapshot => quote !== null,
+    );
+  } catch (error) {
+    console.error("Spark quote fetch failed, falling back to Yahoo quote endpoint", error);
   }
 
-  const payload = (await response.json()) as {
-    spark?: {
-      result?: YahooSparkResult[];
-    };
-  };
+  if (snapshot.length === 0) {
+    const quoteUrl = new URL(YAHOO_QUOTE_URL);
+    quoteUrl.searchParams.set("symbols", MARKET_QUOTE_CONFIG.map((item) => item.sourceSymbol).join(","));
 
-  const resultMap = new Map((payload.spark?.result ?? []).map((item) => [item.symbol, item]));
-  const snapshot = MARKET_QUOTE_CONFIG.map((item) => mapSparkResult(item, resultMap.get(item.sourceSymbol))).filter(
-    (quote): quote is MarketSnapshot => quote !== null,
-  );
+    const quoteResponse = await fetch(quoteUrl, {
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "Mozilla/5.0 (compatible; DhirenPortfolio/1.0; +https://github.com/DhirenRawal/dhiren-portfolio)",
+      },
+    });
+
+    if (!quoteResponse.ok) {
+      throw new Error(`Yahoo Finance quote request failed with ${quoteResponse.status}`);
+    }
+
+    const quotePayload = (await quoteResponse.json()) as {
+      quoteResponse?: {
+        result?: YahooQuoteResult[];
+      };
+    };
+
+    const quoteMap = new Map((quotePayload.quoteResponse?.result ?? []).map((item) => [item.symbol, item]));
+
+    snapshot = MARKET_QUOTE_CONFIG.map((item) => {
+      const quote = quoteMap.get(item.sourceSymbol);
+      const price = quote?.regularMarketPrice;
+      const change = quote?.regularMarketChange;
+      const changePercent = quote?.regularMarketChangePercent;
+
+      if (
+        typeof price !== "number" ||
+        !Number.isFinite(price) ||
+        typeof change !== "number" ||
+        !Number.isFinite(change) ||
+        typeof changePercent !== "number" ||
+        !Number.isFinite(changePercent)
+      ) {
+        return null;
+      }
+
+      return {
+        symbol: item.symbol,
+        rawSymbol: item.sourceSymbol,
+        name: item.name,
+        category: item.category,
+        price: round(price, item.decimals),
+        change: round(change, item.decimals),
+        changePercent: round(changePercent, 2),
+        decimals: item.decimals,
+        source: "Yahoo Finance" as const,
+        marketTime: quote?.regularMarketTime ?? null,
+        exchangeTimezoneName: quote?.exchangeTimezoneName ?? quote?.fullExchangeName ?? null,
+        timezone: quote?.exchangeTimezoneName?.includes("New_York")
+          ? "EDT"
+          : quote?.exchangeTimezoneName?.includes("Chicago")
+            ? "CDT"
+            : null,
+      };
+    }).filter((quote): quote is MarketSnapshot => quote !== null);
+  }
 
   if (snapshot.length === 0) {
     throw new Error("Yahoo Finance returned no usable quotes");

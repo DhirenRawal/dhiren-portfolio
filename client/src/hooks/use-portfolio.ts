@@ -3,9 +3,34 @@ import { api } from "@shared/routes";
 import { type InsertContactMessage } from "@shared/schema";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") || "";
+const MARKET_CACHE_KEY = "portfolio.market.quotes.v1";
 
 function buildApiUrl(path: string) {
   return `${API_BASE_URL}${path}`;
+}
+
+function readCachedMarketData() {
+  if (typeof window === "undefined") return undefined;
+
+  try {
+    const cached = window.localStorage.getItem(MARKET_CACHE_KEY);
+    if (!cached) return undefined;
+
+    const parsed = JSON.parse(cached);
+    return Array.isArray(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function writeCachedMarketData(data: unknown) {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(MARKET_CACHE_KEY, JSON.stringify(data));
+  } catch {
+    // Ignore storage failures and continue with in-memory query data.
+  }
 }
 
 // GET /api/profile
@@ -75,13 +100,18 @@ export function useMarketData() {
     queryFn: async () => {
       const res = await fetch(buildApiUrl(api.market.list.path));
       if (!res.ok) throw new Error("Failed to fetch market data");
-      return api.market.list.responses[200].parse(await res.json());
+      const data = api.market.list.responses[200].parse(await res.json());
+      writeCachedMarketData(data);
+      return data;
     },
-    staleTime: 45_000,
-    refetchInterval: 60_000,
+    initialData: readCachedMarketData,
+    staleTime: 15_000,
+    refetchInterval: 15_000,
     refetchIntervalInBackground: true,
-    refetchOnWindowFocus: false,
-    retry: 1,
+    refetchOnWindowFocus: true,
+    refetchOnMount: "always",
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1_500 * attempt, 6_000),
   });
 }
 
