@@ -1420,7 +1420,7 @@ export default function Home() {
                   <img
                     src="/dhiren-professional.png"
                     alt="Dhiren Rawal portrait card"
-                    className="h-full w-full object-cover object-[53%_14%]"
+                    className="h-full w-full object-cover object-[53%_14%] grayscale transition-[transform,filter] duration-500 ease-out will-change-transform group-hover:scale-[1.025] group-hover:grayscale-0"
                   />
                   <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(7,17,29,0)_42%,rgba(7,17,29,0.12)_60%,rgba(7,17,29,0.88)_100%)]" />
                   <div className="absolute right-4 top-4 rounded-full border border-primary/20 bg-[#07111d]/92 px-5 py-2.5 shadow-[0_10px_24px_rgba(0,0,0,0.35)] backdrop-blur-md">
