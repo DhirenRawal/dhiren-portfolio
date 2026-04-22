@@ -4,6 +4,7 @@ import { type InsertContactMessage } from "@shared/schema";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") || "";
 const MARKET_CACHE_KEY = "portfolio.market.quotes.v1";
+const CONTACT_FALLBACK_EMAIL = "dhiren.rawal2001@gmail.com";
 
 function buildApiUrl(path: string) {
   return `${API_BASE_URL}${path}`;
@@ -11,6 +12,43 @@ function buildApiUrl(path: string) {
 
 function buildSameOriginApiUrl(path: string) {
   return path;
+}
+
+async function submitContactViaFormSubmit(data: InsertContactMessage) {
+  const formData = new FormData();
+  formData.append("name", data.name);
+  formData.append("email", data.email);
+  formData.append("message", data.message || "(No message provided)");
+  formData.append("_subject", `New portfolio inquiry from ${data.name}`);
+  formData.append("_template", "table");
+
+  if (typeof window !== "undefined") {
+    formData.append("_url", window.location.href);
+  }
+
+  const response = await fetch(`https://formsubmit.co/ajax/${encodeURIComponent(CONTACT_FALLBACK_EMAIL)}`, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    let message = "Fallback contact delivery failed.";
+
+    try {
+      const payload = (await response.json()) as { message?: string };
+      if (payload.message) message = payload.message;
+    } catch {
+      const text = await response.text().catch(() => "");
+      if (text) message = text;
+    }
+
+    throw new Error(message);
+  }
+
+  return { success: true };
 }
 
 function readCachedMarketData() {
@@ -128,28 +166,44 @@ export function useContact() {
       const url = buildSameOriginApiUrl(api.contact.submit.path);
       console.log("Submitting contact form to:", url);
 
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(validated),
-      });
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(validated),
+        });
 
-      if (!res.ok) {
-        if (res.status === 400) {
-          const error = api.contact.submit.responses[400].parse(await res.json());
-          throw new Error(error.message);
+        if (!res.ok) {
+          if (res.status === 400) {
+            const error = api.contact.submit.responses[400].parse(await res.json());
+            throw new Error(error.message);
+          }
+
+          let message = `Failed to send message (${res.status})`;
+
+          try {
+            const errorPayload = (await res.json()) as { message?: string };
+            if (errorPayload.message) message = errorPayload.message;
+          } catch {
+            const errorText = await res.text().catch(() => "");
+            if (errorText) message = errorText;
+          }
+
+          if (message.includes("Email delivery is not configured yet")) {
+            return await submitContactViaFormSubmit(validated);
+          }
+
+          throw new Error(message);
         }
 
-        try {
-          const errorPayload = (await res.json()) as { message?: string };
-          throw new Error(errorPayload.message || `Failed to send message (${res.status})`);
-        } catch {
-          const errorText = await res.text().catch(() => "");
-          throw new Error(`Failed to send message (${res.status}) ${errorText}`);
+        return api.contact.submit.responses[201].parse(await res.json());
+      } catch (error) {
+        if (error instanceof Error && error.message === "Failed to fetch") {
+          return await submitContactViaFormSubmit(validated);
         }
+
+        throw error;
       }
-
-      return api.contact.submit.responses[201].parse(await res.json());
     },
   });
 }
