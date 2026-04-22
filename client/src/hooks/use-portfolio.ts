@@ -106,8 +106,13 @@ export function useContact() {
           throw new Error(error.message);
         }
 
-        const errorText = await res.text().catch(() => "");
-        throw new Error(`Failed to send message (${res.status}) ${errorText}`);
+        try {
+          const errorPayload = (await res.json()) as { message?: string };
+          throw new Error(errorPayload.message || `Failed to send message (${res.status})`);
+        } catch {
+          const errorText = await res.text().catch(() => "");
+          throw new Error(`Failed to send message (${res.status}) ${errorText}`);
+        }
       }
 
       return api.contact.submit.responses[201].parse(await res.json());

@@ -10,15 +10,58 @@ const NAV_LINKS = [
   { name: "Contact", href: "/#contact" },
 ];
 
+const NEW_YORK_TIME_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+});
+
+const NEW_YORK_PARTS_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
+  weekday: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+});
+
+function getMarketClock() {
+  const parts = Object.fromEntries(
+    NEW_YORK_PARTS_FORMATTER.formatToParts(new Date())
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+
+  const weekday = parts.weekday ?? "Mon";
+  const hour = Number(parts.hour ?? "0");
+  const minute = Number(parts.minute ?? "0");
+  const currentMinutes = hour * 60 + minute;
+  const isWeekday = weekday !== "Sat" && weekday !== "Sun";
+  const isOpen = isWeekday && currentMinutes >= 9 * 60 + 30 && currentMinutes < 16 * 60;
+
+  return {
+    isOpen,
+    time: NEW_YORK_TIME_FORMATTER.format(new Date()),
+  };
+}
+
 export function Navigation() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [marketClock, setMarketClock] = useState(() => getMarketClock());
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 30);
     handleScroll();
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setMarketClock(getMarketClock()), 1000);
+    return () => window.clearInterval(interval);
   }, []);
 
   return (
@@ -47,6 +90,15 @@ export function Navigation() {
           </nav>
 
           <div className="hidden items-center gap-3 md:flex">
+            <div className="min-w-[188px] rounded-[18px] border border-white/10 bg-[#08111d]/88 px-4 py-2 shadow-[0_10px_26px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+              <div className={`flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.26em] ${marketClock.isOpen ? "text-primary" : "text-amber-300"}`}>
+                <span className={`h-2 w-2 rounded-full ${marketClock.isOpen ? "animate-pulse bg-primary" : "bg-amber-300"}`} />
+                {marketClock.isOpen ? "MKT OPEN" : "MKT CLOSED"} · EST
+              </div>
+              <div className="mt-1 font-mono text-[1.02rem] font-semibold leading-none tracking-[0.08em] text-white tabular-nums">
+                {marketClock.time}
+              </div>
+            </div>
             <a
               href="/Dhiren_Rawal_Resume.pdf"
               target="_blank"

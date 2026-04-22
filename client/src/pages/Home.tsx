@@ -28,7 +28,7 @@ import {
   Wifi,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useMarketData } from "@/hooks/use-portfolio";
+import { useContact, useMarketData } from "@/hooks/use-portfolio";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -252,7 +252,7 @@ const CANDLE_GAP = 5;
 const contactSchema = z.object({
   name: z.string().min(1, "Name / Organization is required"),
   email: z.string().email("Valid email address required"),
-  message: z.string().min(10, "Message must be at least 10 characters"),
+  message: z.string(),
 });
 
 type ContactFormValues = z.infer<typeof contactSchema>;
@@ -416,138 +416,6 @@ function seedCandles(base: number, count: number) {
   }
 
   return candles;
-}
-
-function CursorTrail() {
-  const innerRef = useRef<HTMLDivElement | null>(null);
-  const outerRef = useRef<HTMLDivElement | null>(null);
-  const trailRefs = useRef<Array<HTMLDivElement | null>>([]);
-  const [enabled, setEnabled] = useState(false);
-
-  useEffect(() => {
-    const finePointer = window.matchMedia("(pointer: fine)");
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const syncEnabledState = () => setEnabled(finePointer.matches && !reducedMotion.matches);
-
-    syncEnabledState();
-    finePointer.addEventListener("change", syncEnabledState);
-    reducedMotion.addEventListener("change", syncEnabledState);
-
-    return () => {
-      finePointer.removeEventListener("change", syncEnabledState);
-      reducedMotion.removeEventListener("change", syncEnabledState);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!enabled) return;
-
-    const target = {
-      x: window.innerWidth / 2,
-      y: window.innerHeight / 2,
-    };
-    const inner = { ...target };
-    const outer = { ...target };
-    const trail = Array.from({ length: 8 }, () => ({ ...target }));
-    let frameId = 0;
-
-    const setVisible = (visible: boolean) => {
-      if (innerRef.current) innerRef.current.style.opacity = visible ? "1" : "0";
-      if (outerRef.current) outerRef.current.style.opacity = visible ? "1" : "0";
-
-      trailRefs.current.forEach((node, index) => {
-        if (!node) return;
-        node.style.opacity = visible ? `${Math.max(0.04, 0.22 - index * 0.02)}` : "0";
-      });
-    };
-
-    const animate = () => {
-      inner.x += (target.x - inner.x) * 0.34;
-      inner.y += (target.y - inner.y) * 0.34;
-      outer.x += (target.x - outer.x) * 0.16;
-      outer.y += (target.y - outer.y) * 0.16;
-
-      if (innerRef.current) {
-        innerRef.current.style.transform = `translate3d(${inner.x - 5}px, ${inner.y - 5}px, 0)`;
-      }
-
-      if (outerRef.current) {
-        outerRef.current.style.transform = `translate3d(${outer.x - 15}px, ${outer.y - 15}px, 0)`;
-      }
-
-      trail[0].x += (inner.x - trail[0].x) * 0.35;
-      trail[0].y += (inner.y - trail[0].y) * 0.35;
-
-      for (let index = 1; index < trail.length; index += 1) {
-        trail[index].x += (trail[index - 1].x - trail[index].x) * 0.35;
-        trail[index].y += (trail[index - 1].y - trail[index].y) * 0.35;
-      }
-
-      trail.forEach((point, index) => {
-        const node = trailRefs.current[index];
-        if (!node) return;
-
-        const size = 8 - index * 0.75;
-        node.style.transform = `translate3d(${point.x - size / 2}px, ${point.y - size / 2}px, 0) scale(${1 - index * 0.06})`;
-      });
-
-      frameId = window.requestAnimationFrame(animate);
-    };
-
-    const handleMove = (event: MouseEvent) => {
-      target.x = event.clientX;
-      target.y = event.clientY;
-      setVisible(true);
-    };
-
-    const handleHide = () => setVisible(false);
-
-    setVisible(false);
-    frameId = window.requestAnimationFrame(animate);
-    window.addEventListener("mousemove", handleMove, { passive: true });
-    window.addEventListener("blur", handleHide);
-    document.addEventListener("mouseleave", handleHide);
-
-    return () => {
-      window.cancelAnimationFrame(frameId);
-      window.removeEventListener("mousemove", handleMove);
-      window.removeEventListener("blur", handleHide);
-      document.removeEventListener("mouseleave", handleHide);
-    };
-  }, [enabled]);
-
-  if (!enabled) return null;
-
-  return (
-    <>
-      <div
-        ref={innerRef}
-        className="pointer-events-none fixed left-0 top-0 z-[9999] h-2.5 w-2.5 rounded-full bg-primary/95 opacity-0 shadow-[0_0_14px_3px_rgba(0,255,136,0.8)] transition-opacity duration-200"
-        style={{ willChange: "transform, opacity" }}
-      />
-      <div
-        ref={outerRef}
-        className="pointer-events-none fixed left-0 top-0 z-[9998] h-[30px] w-[30px] rounded-full border border-primary/35 bg-primary/5 opacity-0 transition-opacity duration-200"
-        style={{ willChange: "transform, opacity" }}
-      />
-      {Array.from({ length: 8 }).map((_, index) => (
-        <div
-          key={index}
-          ref={(node) => {
-            trailRefs.current[index] = node;
-          }}
-          className="pointer-events-none fixed left-0 top-0 z-[9998] rounded-full bg-primary"
-          style={{
-            width: `${8 - index * 0.75}px`,
-            height: `${8 - index * 0.75}px`,
-            opacity: 0,
-            filter: "blur(0.2px)",
-            willChange: "transform, opacity",
-          }}
-        />
-      ))}
-    </>
-  );
 }
 
 function MatrixRainCanvas() {
@@ -1003,6 +871,7 @@ export default function Home() {
   const mouseX = useRef(0.5);
   const mouseY = useRef(0.5);
   const { toast } = useToast();
+  const contactMutation = useContact();
   const { data: marketData, isLoading: marketLoading, isError: marketError } = useMarketData();
 
   const form = useForm<ContactFormValues>({
@@ -1045,8 +914,6 @@ export default function Home() {
     mouseY.current = (event.clientY - rect.top) / rect.height;
   }, []);
   const heroTickers = useMemo(() => normalizeTickers((marketData as MarketQuote[] | undefined) ?? []), [marketData]);
-  const primaryIndexQuote = heroTickers.find((ticker) => ticker.symbol === "SPX") ?? heroTickers[0] ?? null;
-
   const [spotInput, setSpotInput] = useState("450");
   const [strikeInput, setStrikeInput] = useState("460");
   const [daysInput, setDaysInput] = useState("30");
@@ -1073,27 +940,32 @@ export default function Home() {
 
   const marketOpen = marketClock.isOpen;
 
-  const submitContact = (values: ContactFormValues) => {
-    void values;
+  const submitContact = async (values: ContactFormValues) => {
     setSending(true);
 
-    window.setTimeout(() => {
-      setSending(false);
+    try {
+      await contactMutation.mutateAsync(values);
       toast({
         title: "Message Sent Successfully!",
-        description: "Thank you for reaching out. I will get back to you shortly.",
+        description: "Thank you for your interest. I will reach out to you shortly.",
       });
       form.reset();
-    }, 1500);
+    } catch (error) {
+      toast({
+        title: "Unable to send message",
+        description: error instanceof Error ? error.message : "Please try again in a moment.",
+        variant: "destructive",
+      });
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
     <div className="flex min-h-screen flex-col bg-background font-sans text-foreground selection:bg-primary/30 selection:text-primary">
-      <CursorTrail />
-
       <section
         id="home"
-        className="relative flex min-h-screen cursor-none flex-col items-center justify-center overflow-hidden pb-8 pt-16"
+        className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden pb-8 pt-16"
         onMouseMove={onHeroMouseMove}
       >
         <div className="absolute inset-0 overflow-hidden">
@@ -1168,29 +1040,6 @@ export default function Home() {
               Open to roles · April 2026
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
             </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2, duration: 0.45 }}
-              className="rounded-[28px] border border-white/10 bg-[#06111d]/85 px-5 py-3 shadow-[0_18px_45px_rgba(0,0,0,0.35)] backdrop-blur-xl"
-            >
-              <div className={`flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.28em] ${marketOpen ? "text-primary" : "text-amber-300"}`}>
-                <span className={`h-2.5 w-2.5 rounded-full ${marketOpen ? "animate-pulse bg-primary" : "bg-amber-300"}`} />
-                {marketOpen ? "MKT OPEN" : "MKT CLOSED"} · {marketClock.zoneLabel}
-              </div>
-              <div className="mt-2 flex items-end justify-center gap-3">
-                <span className="font-mono text-[2rem] font-bold leading-none text-white sm:text-[2.3rem]">{marketClock.time}</span>
-                <span className="pb-1 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground/60">Yahoo Finance</span>
-              </div>
-              <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/55">
-                {primaryIndexQuote
-                  ? `${primaryIndexQuote.symbol} ${primaryIndexQuote.price.toFixed(primaryIndexQuote.decimals)} ${primaryIndexQuote.pct >= 0 ? "+" : ""}${primaryIndexQuote.pct.toFixed(2)}%`
-                  : marketError
-                    ? "Live quotes temporarily unavailable"
-                    : "Loading live quotes..."}
-              </div>
-            </motion.div>
           </div>
 
           <motion.div
@@ -1217,7 +1066,11 @@ export default function Home() {
             />
             <div className="absolute -inset-[4px] rounded-full bg-background" />
             <div className="relative h-[210px] w-[210px] overflow-hidden rounded-full ring-2 ring-primary/25 shadow-[0_0_50px_rgba(0,255,136,0.18),inset_0_0_30px_rgba(0,0,0,0.5)] sm:h-[250px] sm:w-[250px]">
-              <img src="/dhiren-portrait.png" alt="Dhiren Rawal" className="h-full w-full object-cover object-top" />
+              <img
+                src="/dhiren-professional.png"
+                alt="Dhiren Rawal"
+                className="h-full w-full scale-[1.12] object-cover object-[54%_14%]"
+              />
               <motion.div
                 animate={{ y: ["-100%", "220%"] }}
                 transition={{ duration: 2.8, repeat: Infinity, ease: "linear", repeatDelay: 5 }}
@@ -1561,23 +1414,28 @@ export default function Home() {
               transition={{ duration: 0.7 }}
               className="flex justify-center lg:justify-end"
             >
-              <div className="group relative">
-                <div className="absolute -inset-2 rounded-3xl bg-gradient-to-br from-primary/40 via-primary/10 to-transparent opacity-70 blur-sm transition-opacity duration-500 group-hover:opacity-100" />
-                <div className="relative w-72 overflow-hidden rounded-2xl border border-primary/30 shadow-2xl shadow-primary/10 sm:w-80">
-                  <img src="/dhiren-portrait.png" alt="Dhiren Rawal" className="h-full w-full object-cover object-center grayscale transition-all duration-700 group-hover:grayscale-0" />
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-background/95 to-transparent px-6 pb-5 pt-10">
-                    <h3 className="text-xl font-bold tracking-tight text-white">Dhiren Rawal</h3>
-                    <p className="mt-0.5 font-mono text-sm text-primary">MQF Candidate · UCSD Rady</p>
+              <div className="group relative w-full max-w-[430px]">
+                <div className="absolute -inset-5 rounded-[36px] bg-gradient-to-br from-primary/35 via-primary/10 to-transparent opacity-80 blur-2xl transition-opacity duration-500 group-hover:opacity-100" />
+                <div className="relative aspect-[0.78] overflow-hidden rounded-[30px] border border-primary/25 bg-[#0a111a] shadow-[0_28px_70px_rgba(0,0,0,0.45)]">
+                  <img
+                    src="/dhiren-professional.png"
+                    alt="Dhiren Rawal portrait card"
+                    className="h-full w-full object-cover object-[53%_14%]"
+                  />
+                  <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(7,17,29,0)_42%,rgba(7,17,29,0.12)_60%,rgba(7,17,29,0.88)_100%)]" />
+                  <div className="absolute right-4 top-4 rounded-full border border-primary/20 bg-[#07111d]/92 px-5 py-2.5 shadow-[0_10px_24px_rgba(0,0,0,0.35)] backdrop-blur-md">
+                    <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.18em] text-white/90">
+                      <GraduationCap className="h-3.5 w-3.5 text-primary" />
+                      Class of 2025
+                    </div>
+                  </div>
+                  <div className="absolute inset-x-0 bottom-0 px-6 pb-6 pt-16 text-left">
+                    <div className="text-[2rem] font-bold leading-none text-white">Dhiren Rawal</div>
+                    <div className="mt-3 font-mono text-[11px] uppercase tracking-[0.22em] text-primary">
+                      MQF Candidate · UCSD Rady
+                    </div>
                   </div>
                 </div>
-                <motion.div
-                  animate={{ y: [0, -8, 0] }}
-                  transition={{ repeat: Infinity, duration: 3.5, ease: "easeInOut" }}
-                  className="absolute -right-4 -top-4 flex items-center gap-2 rounded-xl border border-primary/30 bg-background px-3 py-2 shadow-xl"
-                >
-                  <GraduationCap className="h-4 w-4 text-primary" />
-                  <span className="font-mono text-xs text-foreground">Class of 2025</span>
-                </motion.div>
               </div>
             </motion.div>
 
@@ -1769,16 +1627,15 @@ export default function Home() {
 
       <div className="fixed bottom-0 z-[100] w-full">
         <div className="relative z-50 w-full overflow-hidden border-t border-white/6 bg-[#020810]/95 backdrop-blur-xl" style={{ height: "56px" }}>
-          <div className="absolute bottom-0 left-0 top-0 z-20 flex min-w-[170px] shrink-0 flex-col justify-center border-r border-white/6 bg-[#020810]/95 px-4">
-            <span className={`flex items-center gap-1.5 font-mono text-[9px] font-bold uppercase tracking-widest ${marketOpen ? "text-primary" : "text-amber-300"}`}>
+          <div className="absolute bottom-0 left-0 top-0 z-20 flex min-w-[112px] shrink-0 items-center border-r border-white/6 bg-[#020810]/95 px-4">
+            <span className={`flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-[0.24em] ${marketOpen ? "text-primary" : "text-amber-300"}`}>
               <span className={`h-1.5 w-1.5 rounded-full ${marketOpen ? "animate-pulse bg-primary" : "bg-amber-300"}`} />
-              {marketOpen ? "MKT OPEN" : "MKT CLOSED"} · {marketClock.zoneLabel}
+              {marketOpen ? "Live" : "Closed"}
             </span>
-            <span className="mt-1 font-mono text-[13px] font-semibold text-white/90 tabular-nums">{marketClock.time}</span>
           </div>
-          <div className="pointer-events-none absolute bottom-0 left-[170px] top-0 z-10 w-12 bg-gradient-to-r from-[#020810]/95 to-transparent" />
+          <div className="pointer-events-none absolute bottom-0 left-[112px] top-0 z-10 w-12 bg-gradient-to-r from-[#020810]/95 to-transparent" />
           <div className="pointer-events-none absolute bottom-0 right-0 top-0 z-10 w-16 bg-gradient-to-l from-[#020810]/95 to-transparent" />
-          <div className="absolute bottom-0 left-[170px] right-0 top-0 flex items-center overflow-hidden">
+          <div className="absolute bottom-0 left-[112px] right-0 top-0 flex items-center overflow-hidden">
             {heroTickers.length ? (
               <div className="animate-ticker hover:[animation-play-state:paused] flex h-full w-max items-center whitespace-nowrap">
                 {[...heroTickers, ...heroTickers, ...heroTickers].map((ticker, index) => (
