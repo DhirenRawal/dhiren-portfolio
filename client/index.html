@@ -1,6 +1,23 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <script type="module">
+    (function () {
+      var measurementId = import.meta.env.VITE_GA_MEASUREMENT_ID;
+      if (!measurementId) return;
+
+      window.dataLayer = window.dataLayer || [];
+      window.gtag = window.gtag || function gtag(){window.dataLayer.push(arguments);};
+
+      var script = document.createElement("script");
+      script.async = true;
+      script.src = "https://www.googletagmanager.com/gtag/js?id=" + encodeURIComponent(measurementId);
+      document.head.appendChild(script);
+
+      window.gtag("js", new Date());
+      window.gtag("config", measurementId, { send_page_view: false });
+    })();
+  </script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
 

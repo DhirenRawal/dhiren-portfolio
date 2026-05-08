@@ -21,6 +21,11 @@ export function initAnalytics() {
   if (!GA_MEASUREMENT_ID || initialized || typeof window === "undefined") return;
 
   window.dataLayer = window.dataLayer || [];
+  if (window.gtag) {
+    initialized = true;
+    return;
+  }
+
   window.gtag = ((...args: unknown[]) => {
     window.dataLayer?.push(args);
   }) as Gtag;
