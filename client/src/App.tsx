@@ -1,9 +1,11 @@
+import { useEffect } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { Navigation } from "@/components/Navigation";
 import { AnimatePresence, motion } from "framer-motion";
+import { initAnalytics, trackPageView } from "@/lib/analytics";
 
 // Pages
 import Home from "@/pages/Home";
@@ -44,6 +46,29 @@ function Router() {
   );
 }
 
+function AnalyticsTracker() {
+  const [location] = useLocation();
+
+  useEffect(() => {
+    initAnalytics();
+  }, []);
+
+  useEffect(() => {
+    trackPageView(`${location}${window.location.hash}`);
+  }, [location]);
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      trackPageView(`${window.location.pathname}${window.location.hash}`);
+    };
+
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, []);
+
+  return null;
+}
+
 function PageWrapper({ children }: { children: React.ReactNode }) {
   return (
     <motion.main
@@ -61,6 +86,7 @@ function PageWrapper({ children }: { children: React.ReactNode }) {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <AnalyticsTracker />
       <Navigation />
       <Router />
       <Toaster />

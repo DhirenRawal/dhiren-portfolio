@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Menu, Terminal, X } from "lucide-react";
+import { trackEvent } from "@/lib/analytics";
 
 const NAV_LINKS = [
   { name: "Terminal", href: "/#home" },
@@ -103,6 +104,7 @@ export function Navigation() {
               href="/Dhiren_Rawal_Resume.pdf"
               target="_blank"
               rel="noreferrer"
+              onClick={() => trackEvent("resume_opened", { location: "desktop_navigation" })}
               className="inline-flex min-h-8 items-center justify-center rounded-md border border-primary bg-primary px-3 text-xs font-medium text-primary-foreground shadow-[0_0_24px_rgba(0,255,136,0.25)] transition-all duration-200 hover:scale-[1.02] hover:shadow-[0_0_40px_rgba(0,255,136,0.42)]"
             >
               Resume
@@ -132,6 +134,7 @@ export function Navigation() {
               href="/Dhiren_Rawal_Resume.pdf"
               target="_blank"
               rel="noreferrer"
+              onClick={() => trackEvent("resume_opened", { location: "mobile_navigation" })}
               className="mt-2 inline-flex min-h-10 items-center justify-center rounded-md border border-primary bg-primary px-4 font-medium text-primary-foreground"
             >
               Resume

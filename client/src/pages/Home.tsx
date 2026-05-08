@@ -32,6 +32,7 @@ import { useContact, useMarketData } from "@/hooks/use-portfolio";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { trackEvent } from "@/lib/analytics";
 
 type MetricCardProps = {
   icon: ComponentType<{ className?: string }>;
@@ -945,6 +946,7 @@ export default function Home() {
 
     try {
       await contactMutation.mutateAsync(values);
+      trackEvent("contact_form_submitted", { location: "home_contact_section" });
       toast({
         title: "Message Sent Successfully!",
         description: "Thank you for your interest. I will reach out to you shortly.",
@@ -1108,6 +1110,7 @@ export default function Home() {
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.2 }} className="mb-10 flex flex-wrap justify-center gap-3">
             <a
               href="#projects"
+              onClick={() => trackEvent("cta_clicked", { label: "view_projects", location: "hero" })}
               className="inline-flex min-h-10 items-center gap-2 rounded-md border border-primary bg-primary px-8 font-semibold text-primary-foreground shadow-[0_0_24px_rgba(0,255,136,0.35)] transition-all duration-200 hover:scale-105 hover:shadow-[0_0_44px_rgba(0,255,136,0.6)]"
             >
               View Projects <ArrowRight className="h-4 w-4" />
@@ -1116,6 +1119,7 @@ export default function Home() {
               href="/Dhiren_Rawal_Resume.pdf"
               target="_blank"
               rel="noreferrer"
+              onClick={() => trackEvent("resume_opened", { location: "hero" })}
               className="inline-flex min-h-10 items-center gap-2 rounded-md border border-primary/20 bg-background/15 px-8 backdrop-blur-sm transition-all duration-200 hover:scale-105 hover:border-primary/55 hover:bg-primary/10 hover:shadow-[0_0_22px_rgba(0,255,136,0.18)]"
             >
               <Download className="h-4 w-4" /> Download CV
@@ -1507,7 +1511,19 @@ export default function Home() {
 
               <div className="space-y-6">
                 {[
-                  { icon: Mail, label: "Email", content: <a href="mailto:dhiren.rawal2001@gmail.com" className="text-lg font-medium transition-colors hover:text-primary">dhiren.rawal2001@gmail.com</a> },
+                  {
+                    icon: Mail,
+                    label: "Email",
+                    content: (
+                      <a
+                        href="mailto:dhiren.rawal2001@gmail.com"
+                        onClick={() => trackEvent("outbound_link_clicked", { destination: "email", location: "contact_section" })}
+                        className="text-lg font-medium transition-colors hover:text-primary"
+                      >
+                        dhiren.rawal2001@gmail.com
+                      </a>
+                    ),
+                  },
                   { icon: Phone, label: "Phone", content: <p className="text-lg font-medium">+1 (858) 214-0637</p> },
                   { icon: MapPin, label: "Location", content: <p className="text-lg font-medium">New York, NY / San Diego, CA</p> },
                 ].map(({ icon: Icon, label, content }) => (
@@ -1528,6 +1544,7 @@ export default function Home() {
                   href="https://www.linkedin.com/in/dhirenrawal9"
                   target="_blank"
                   rel="noreferrer"
+                  onClick={() => trackEvent("outbound_link_clicked", { destination: "linkedin", location: "contact_section" })}
                   className="flex h-12 w-12 items-center justify-center rounded-full border border-border transition-colors hover:border-primary"
                 >
                   <Linkedin className="h-5 w-5" />
@@ -1536,6 +1553,7 @@ export default function Home() {
                   href="https://github.com/DhirenRawal"
                   target="_blank"
                   rel="noreferrer"
+                  onClick={() => trackEvent("outbound_link_clicked", { destination: "github", location: "contact_section" })}
                   className="flex h-12 w-12 items-center justify-center rounded-full border border-border transition-colors hover:border-primary"
                 >
                   <Github className="h-5 w-5" />

@@ -10,6 +10,7 @@ import { Send, CheckCircle2, AlertCircle, Mail, MapPin, Phone } from "lucide-rea
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { trackEvent } from "@/lib/analytics";
 
 const formSchema = insertContactMessageSchema.extend({
   email: z.string().email("Invalid email address"),
@@ -34,6 +35,7 @@ export default function Contact() {
   const onSubmit = async (data: FormValues) => {
     try {
       await sendMessage(data);
+      trackEvent("contact_form_submitted", { location: "contact_page" });
       setIsSuccess(true);
       toast({
         title: "Message Sent",
